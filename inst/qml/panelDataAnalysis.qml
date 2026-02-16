@@ -59,4 +59,14 @@ Form
       allowedColumns: ["ordinal"]
     }
   } 
-}
+
+  Section
+  {
+    title   : qsTr("Assumption Checks")
+    columns: 1
+
+    Text { text: qsTr("This example shows how to get the factors of a variable") }
+
+    
+    }
+  }
