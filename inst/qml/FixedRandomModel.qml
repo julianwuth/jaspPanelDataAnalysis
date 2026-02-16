@@ -5,7 +5,7 @@ import './Common' as Common
 Form
 {
     Text { text: qsTr("Effects") }
-    Common.CommonVariableInput{}
+    Common.VariableInput{}
 
     Section
     {

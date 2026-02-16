@@ -7,5 +7,5 @@ import './Common' as Common
 
 Form{
     Text { text: qsTr("help") }
-    Common.CommonVariableInput{}
+    Common.VariableInput{}
     }
