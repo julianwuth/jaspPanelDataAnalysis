@@ -4,8 +4,8 @@ import JASP.Module
 Description
 {
 	name		: "jaspModuleTemplate"
-	title		: qsTr("Jasp Module")
-	description	: qsTr("Examples for module builders")
+	title		: qsTr("Panel Data Analysis")
+	description	: qsTr("Module for analyzing panel data")
 	version		: "0.1"
 	author		: "JASP Team"
 	maintainer	: "JASP Team <info@jasp-stats.org>"
