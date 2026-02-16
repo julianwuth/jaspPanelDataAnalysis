@@ -82,7 +82,7 @@ Description
 	Analysis
 	{
 		title: qsTr("Fixed or Random Effects Model")
-		func: "panelDataAnalysis"
+		func: "fixedRandomModel"
 		qml: "FixedRandomModel.qml"
 		requiresData: false
 	}
@@ -90,7 +90,7 @@ Description
 	Analysis
 	{
 		title: qsTr("Pooling Model")
-		func: "panelDataAnalysis"
+		func: "poolingModel"
 		qml: "PoolingModel.qml"
 		requiresData: false
 	}
@@ -98,7 +98,7 @@ Description
 	Analysis
 	{
 		title: qsTr("First-Difference Model")
-		func: "panelDataAnalysis"
+		func: "firstDifferenceModel"
 		qml: "FirstDifferenceModel.qml"
 		requiresData: false
 	}
@@ -106,7 +106,7 @@ Description
 	Analysis
 	{
 		title: qsTr("Between Model")
-		func: "panelDataAnalysis"
+		func: "betweenModel"
 		qml: "BetweenModel.qml"
 		requiresData: false
 	}

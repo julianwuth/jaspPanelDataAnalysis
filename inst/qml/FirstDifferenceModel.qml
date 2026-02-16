@@ -5,4 +5,7 @@ import JASP
 
 import './Common' as Common
 
-Common.CommonVariableInput{}
+Form{
+    Text { text: qsTr("help") }
+    Common.CommonVariableInput{}
+    }

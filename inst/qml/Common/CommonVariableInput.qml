@@ -16,13 +16,11 @@
 // <http://www.gnu.org/licenses/>.
 //
 import QtQuick
-import QtQuick.Layouts
 import JASP.Controls
-import JASP.Widgets
 import JASP
 
-Form
-{ 
+Group
+{
     VariablesForm
     {
         AvailableVariablesList { name: "allVariables" }
@@ -74,7 +72,7 @@ Form
         }
     }
 
-  CheckBox
+    CheckBox
     {
         name: "idOnly"
         id: idOnly
@@ -82,13 +80,4 @@ Form
         checked: false
         info: qsTr("If checked, only the ID variable needs to be specified. The time variable will be automatically created based on the assumption that the data is ordered correctly.")
     } 
-
-  Section
-  {
-    title   : qsTr("Assumption Checks")
-    columns: 1
-
-    Text { text: qsTr("Specific tests for panel data.") }
-    
-    }
-  }
+}

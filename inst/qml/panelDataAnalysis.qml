@@ -23,4 +23,4 @@ import JASP
 
 import './Common' as Common
 
-Common.CommonVariableInput{}
+Form{Common.CommonVariableInput{}}
