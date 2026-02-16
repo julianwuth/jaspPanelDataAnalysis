@@ -64,11 +64,7 @@ Group
             singleVariable: true
             allowedColumns: ["ordinal"]
             enabled: !idOnly.checked
-            onEnabledChanged: {
-                if (!enabled && count == 1) {
-                    time.assignedVariables = []
-                }
-            }
+            onEnabledChanged: if (!enabled && count > 0) itemDoubleClicked(0);
         }
     }
 
