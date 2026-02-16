@@ -66,6 +66,11 @@ Description
 
 	Separator{}
 
+	GroupTitle
+	{
+		title: qsTr("Basic Models")
+	}
+
 	Analysis
 	{
 		title: qsTr("Panel data analysis")
@@ -73,4 +78,38 @@ Description
 		qml: "panelDataAnalysis.qml"
 		requiresData: false
 	}
+
+	Analysis
+	{
+		title: qsTr("Fixed or Random Effects Model")
+		func: "panelDataAnalysis"
+		qml: "FixedRandomModel.qml"
+		requiresData: false
+	}
+
+	Analysis
+	{
+		title: qsTr("Pooling Model")
+		func: "panelDataAnalysis"
+		qml: "PoolingModel.qml"
+		requiresData: false
+	}
+
+	Analysis
+	{
+		title: qsTr("First-Difference Model")
+		func: "panelDataAnalysis"
+		qml: "FirstDifferenceModel.qml"
+		requiresData: false
+	}
+
+	Analysis
+	{
+		title: qsTr("Between Model")
+		func: "panelDataAnalysis"
+		qml: "BetweenModel.qml"
+		requiresData: false
+	}
+
+
 }
