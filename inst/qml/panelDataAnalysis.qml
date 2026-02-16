@@ -36,11 +36,19 @@ Form
     }
 
     AssignedVariablesList  {
-      name: "predictors"
-      label: qsTr("Predictors")
+      name: "covariates"
+      label: qsTr("Covariates")
       info: qsTr("")
       singleVariable: false
-      allowedColumns: ["scale", "ordinal", "nominal"]
+      allowedColumns: ["scale"]
+    }
+
+    AssignedVariablesList  {
+      name: "factors"
+      label: qsTr("Factors")
+      info: qsTr("")
+      singleVariable: false
+      allowedColumns: ["ordinal", "nominal"]
     }
 
     AssignedVariablesList  {
@@ -65,7 +73,7 @@ Form
     title   : qsTr("Assumption Checks")
     columns: 1
 
-    Text { text: qsTr("This example shows how to get the factors of a variable") }
+    Text { text: qsTr("Specific tests for panel data.") }
 
     
     }
