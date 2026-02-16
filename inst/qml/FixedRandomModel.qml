@@ -6,6 +6,7 @@ Form
 {
     Text { text: qsTr("Effects") }
     Common.VariableInput{}
+    Common.Coefficients{}
 
     Section
     {
