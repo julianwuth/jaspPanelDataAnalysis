@@ -71,5 +71,6 @@ Description
 		title: qsTr("Panel data analysis")
 		func: "panelDataAnalysis"
 		qml: "panelDataAnalysis.qml"
+		requiresData: false
 	}
 }
