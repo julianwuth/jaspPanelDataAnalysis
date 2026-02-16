@@ -63,4 +63,13 @@ Description
 	  qml: "Parabola.qml"
 	  requiresData: false
 	}
+
+	Separator{}
+
+	Analysis
+	{
+		title: qsTr("Panel data analysis")
+		func: "panelDataAnalysis"
+		qml: "panelDataAnalysis.qml"
+	}
 }
