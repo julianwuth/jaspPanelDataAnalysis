@@ -81,9 +81,17 @@ Description
 
 	Analysis
 	{
-		title: qsTr("Fixed or Random Effects Model")
-		func: "fixedRandomModel"
-		qml: "FixedRandomModel.qml"
+		title: qsTr("Fixed Effects Model")
+		func: "fixedModel"
+		qml: "FixedModel.qml"
+		requiresData: false
+	}
+
+	Analysis
+	{
+		title: qsTr("Random Effects Model")
+		func: "randomModel"
+		qml: "RandomModel.qml"
 		requiresData: false
 	}
 

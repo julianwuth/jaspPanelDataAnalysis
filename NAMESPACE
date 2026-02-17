@@ -2,7 +2,8 @@
 
 export(betweenModel)
 export(firstDifferenceModel)
-export(fixedRandomModel)
+export(fixedModel)
 export(panelDataAnalysis)
 export(poolingModel)
+export(randomModel)
 import(jaspBase)
