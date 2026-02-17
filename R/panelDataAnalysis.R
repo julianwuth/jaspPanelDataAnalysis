@@ -22,6 +22,8 @@ panelDataAnalysis <- function(jaspResults, dataset, options, analysis = "random"
   if(analysis == "random")
     .randEffTablePD(jaspResults, dataset, options, ready)
 
+  .createPlmPlot(jaspResults, dataset, options, ready)
+
   return()
 }
 

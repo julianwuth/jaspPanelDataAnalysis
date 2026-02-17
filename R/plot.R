@@ -1,18 +1,38 @@
 #' @import jaspBase
 #' @export
-.createPLMPlot <- function(jaspResults, dataset, options){
+.createPlmPlot <- function(jaspResults, dataset, options, ready){
 
-  # Checks if the plot already exists
-  if (!is.null(jaspResults[["plot"]])) return()
+  plmPlot <- createJaspPlot(title = "Panel Plot",  width = 160, height = 320)
 
-  image = createJaspPlot(title = "Panel Plot", width = 500, height = 400)
+  plmPlot$dependOn(c("time", "id", "dependent", "plot"))
 
-  image$dependOn(options = plot)
+  jaspResults[["plmPlot"]] <- plmPlot
 
-  image$plotFunction = function() {
+  if (!ready)
+    return()
 
-    plm::plot.plm(x = model)
+  .plmFillPlotDescriptives(plmPlot, dataset, options)
 
-  }
-  jaspResults[["modelPlot"]] <- image
+  return()
+}
+
+.plmFillPlotDescriptives <- function(plmPlot, dataset, options){
+  dataset <- dataset
+  dataset[[options$time]] <- as.numeric(dataset[[options$time]])
+  rangeTime <- range(dataset[[options$time]])
+
+  xBreaks <- jaspGraphs::getPrettyAxisBreaks(rangeTime)
+
+  aes <- ggplot2::aes
+
+  plot <- ggplot2::ggplot(dataset, aes(dataset[[options$time]], dataset[[options$dependent]], color = dataset[[options$id]]))+ggplot2::geom_line()
+
+  plot <- plot +
+    jaspGraphs::scale_x_continuous(options$time, breaks = xBreaks) +
+    jaspGraphs::themeJaspRaw() +
+    jaspGraphs::geom_rangeframe(sides = 'bl')
+
+  plmPlot$plotObject <- plot
+
+  return()
 }
