@@ -13,6 +13,49 @@
   return(ready)
 }
 
+
+.createPlmPlot <- function(jaspResults, dataset, options, ready){
+  if(!is.null(jaspResults[["plmPlot"]]))
+    return()
+
+  plmPlot <- createJaspPlot(title = "Line Plot",  width = 750, height = 400)
+
+  plmPlot$dependOn(c("time", "id", "dependent", "plot"))
+
+  jaspResults[["plmPlot"]] <- plmPlot
+
+  if (!ready)
+    return()
+
+  .plmFillPlotDescriptives(plmPlot, dataset, options)
+
+  return()
+}
+
+.plmFillPlotDescriptives <- function(plmPlot, dataset, options){
+  dataset <- dataset
+
+  dataset[[options$time]] <- as.numeric(as.character(dataset[[options$time]]))
+
+  rangeTime <- range(dataset[[options$time]])
+
+  xBreaks <- unique(c(jaspGraphs::getPrettyAxisBreaks(rangeTime), rangeTime))
+
+  aes <- ggplot2::aes
+
+  plot <- ggplot2::ggplot(dataset, aes(dataset[[options$time]], dataset[[options$dependent]], color = dataset[[options$id]]))+ggplot2::geom_line()
+
+  plot <- plot +
+    jaspGraphs::scale_x_continuous(options$time, breaks = xBreaks, limits = rangeTime) +
+    jaspGraphs::themeJaspRaw(legend.position = 'right') +
+    jaspGraphs::geom_rangeframe(sides = 'bl')+
+    ggplot2::labs(x = options$time , y = options$dependent, color = options$id)
+
+  plmPlot$plotObject <- plot
+
+  return()
+}
+
 .checkErrorsPD <- function(dataset, options) {
   #TODO: check for balanced panel. This needs some handling when the user chooses idOnly although it is not appropiate
 
@@ -269,6 +312,7 @@
   fixedEffTable$addColumnInfo(name = "effect",   title = gettext("Name"),      type = "string")
   fixedEffTable$addColumnInfo(name = "estimate",       title = gettext("Estimate"),  type = "number")
 
+  #TODO: these are available you can just differentiate between fixed effects for time and id if effects == "twoways"
   # For effects == "twoways", the below are not available
   if(options$effects != "twoways") {
     fixedEffTable$addColumnInfo(name = "se",             title = gettext("SE"),        type = "number")

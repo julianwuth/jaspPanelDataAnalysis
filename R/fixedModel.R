@@ -19,7 +19,7 @@ fixedModel <- function(jaspResults, dataset, options, analysis = "within") {
     .fixedEffTablePD(jaspResults, dataset, options, ready)
 
   if(options$plot)
-   .createPlmPlot(jaspResults, dataset, options, ready)
+    .createPlmPlot(jaspResults, dataset, options, ready)
 
   return()
 }
