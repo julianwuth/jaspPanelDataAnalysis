@@ -26,14 +26,24 @@
 
   # check for infinities and at least two observations
   .hasErrors(dataset = dataset, type = c("infinity", "observations"),
-             all.target = c(
+             all.target = if (!options$idOnly) c(
                options$dependent,
                options$factors,
                options$id,
                options$covariates,
                options$time
+             ) else c(
+               options$dependent,
+               options$factors,
+               options$id,
+               options$covariates
              ), observations.amount = "<2",
              exitAnalysisIfErrors = TRUE)
+}
+
+.rewriteOptionsPD <- function(options, analysis) {
+  options[["analysis"]] <- analysis
+  return(options)
 }
 
 .fitModelPD <- function(jaspResults, dataset, options, ready) {
@@ -47,14 +57,18 @@
   if(!ready)
     return()
 
+  saveRDS(dataset, "/Users/julian/Documents/Jasp files/dataset.rds")
 
-  dataSub <- dataset[, !colnames(dataset) %in% c(options$id, options$time)]
-
-  plmDf <- plm::pdata.frame(cbind(dataset[[options$id]], dataset[[options$time]], dataSub))
+  if (!options$idOnly) {
+    plmDf <- plm::pdata.frame(dataset,
+                              index = c(options$id, options$time))
+  } else {
+    plmDf <- plm::pdata.frame(dataset, index = length(unique(dataset[[options$id]]))) #TODO: check if this actually works!
+  }
 
   form <- .createFormulaPD(options)
   plmFit <- plm::plm(
-    formula = form, data = plmDf, model = "within" # TODO: make this adjustable based on the options
+    formula = form, data = plmDf, model = options$analysis
   )
   modelFit$object <- plmFit
 
@@ -87,7 +101,7 @@
 
   modelSummaryTable <- createJaspTable(title = gettext("Model Summary"))
   modelSummaryTable$position <- 1
-  modelSummaryTable$dependOn(.inputFieldNamesPD())
+  modelSummaryTable$dependOn(c(.inputFieldNamesPD(), "idOnly"))
   jaspResults[["modelSummaryTable"]] <- modelSummaryTable
 
   modelSummaryTable$addColumnInfo(name = "model", title = gettext("Model"), type = "string")
@@ -117,10 +131,9 @@
   adjRSq <- modelSum$r.squared[2]
   r <- sqrt(rSq)
 
-  # TODO: Add dynamic model name
   jaspResults[["modelSummaryTable"]]$addRows(
     list(
-      model = "within",
+      model = options$analysis,
       r = r,
       rSq = rSq,
       adjRSq = adjRSq,
