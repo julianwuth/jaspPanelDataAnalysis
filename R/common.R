@@ -57,8 +57,6 @@
   if(!ready)
     return()
 
-  saveRDS(dataset, "/Users/julian/Documents/Jasp files/dataset.rds")
-
   if (!options$idOnly) {
     plmDf <- plm::pdata.frame(dataset,
                               index = c(options$id, options$time))
