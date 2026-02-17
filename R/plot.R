@@ -2,7 +2,7 @@
 #' @export
 .createPlmPlot <- function(jaspResults, dataset, options, ready){
 
-  plmPlot <- createJaspPlot(title = "Line Plot",  width = 750, height = 300)
+  plmPlot <- createJaspPlot(title = "Line Plot",  width = 750, height = 400)
 
   plmPlot$dependOn(c("time", "id", "dependent", "plot"))
 
