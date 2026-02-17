@@ -9,6 +9,14 @@ Form
     {
         title : qsTr("Statistics")
         Common.Coefficients{}
+
+        CheckBox
+        {
+            name: "fixedEffects"
+            label: qsTr("Fixed effect estimates")
+            checked: false
+        }
+
         Common.Effects{}
         Common.Plot{}
     }
