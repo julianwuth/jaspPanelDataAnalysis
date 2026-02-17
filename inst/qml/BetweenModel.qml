@@ -7,5 +7,5 @@ import './Common' as Common
 
 Form{
     Common.VariableInput{}
-    Common.Coefficients
+    Common.Coefficients{}
     }
