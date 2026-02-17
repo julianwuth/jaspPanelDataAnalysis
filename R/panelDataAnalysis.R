@@ -8,6 +8,8 @@ panelDataAnalysis <- function(jaspResults, dataset, options) {
   if(ready)
     .checkErrorsPD(dataset, options)
 
+  .fitModelPD(jaspResults, dataset, options, ready)
+
   .modelSummaryTablePD(jaspResults, dataset, options, ready)
 
   return()
