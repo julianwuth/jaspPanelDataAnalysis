@@ -5,7 +5,12 @@ import JASP
 
 import './Common' as Common
 
-Form{
+Form
+{
     Common.VariableInput{}
-    Common.Coefficients{}
+    Section
+    {
+        title : qsTr("Statistics")
+        Common.Coefficients{}
     }
+}

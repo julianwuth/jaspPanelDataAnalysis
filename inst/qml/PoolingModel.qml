@@ -7,5 +7,9 @@ import './Common' as Common
 
 Form{
     Common.VariableInput{}
-    Common.Coefficients{}
+    Section
+    {
+        title : qsTr("Statistics")
+        Common.Coefficients{}
+    }
 }
