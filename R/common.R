@@ -224,7 +224,7 @@
   ec <- plm::ercomp(plmFit)
   variance <- ec$sigma2
   totalVar <- sum(variance)
-
+  # TODO: also add the correlation (theta) to the output
   componentNames <- list(
     idios = gettext("Idiosyncratic"),
     id    = gettext("Individual"),
