@@ -13,5 +13,6 @@ Form
         title : qsTr("Statistics")
         Common.Coefficients{}
         Common.Effects{}
+        Common.Plot{}
     }
 }

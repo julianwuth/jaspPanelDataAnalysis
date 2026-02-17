@@ -19,5 +19,6 @@ Form
             RadioButton { value: "anemiya"; label: qsTr("Amemiya") }
             RadioButton { value: "nerlove"; label: qsTr("Nerlove") }
         }
+        Common.Plot{}
     }
 }
