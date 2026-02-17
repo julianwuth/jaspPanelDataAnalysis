@@ -22,5 +22,8 @@ randomModel <- function(jaspResults, dataset, options, analysis = "random") {
   if(options$plot)
     .createPlmPlot(jaspResults, dataset, options, ready)
 
+  if(options$hausmanTest) #TODO: change this logic to apply to all potential assumption checks
+    .assumptionCheckContainerPD(jaspResults, dataset, options, ready)
+
   return()
 }

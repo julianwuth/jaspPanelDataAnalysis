@@ -229,10 +229,13 @@
   coefTable$position <- 2
   coefTable$dependOn(c(.inputFieldNamesPD(), "estimates", "effects"))
 
+  # TODO: see if this is actually correct
+  testStatTitle <- if (options$analysis == "random") gettext("z") else gettext("t")
+
   coefTable$addColumnInfo(name = "coef", title = gettext("Name"), type = "string")
   coefTable$addColumnInfo(name = "estimate", title = gettext("Estimate"), type = "number")
   coefTable$addColumnInfo(name = "se", title = gettext("SE"), type = "number")
-  coefTable$addColumnInfo(name = "testStatistic", title = gettext("Test Stat"), type = "number") #TODO: this is either z or t dependent on the model
+  coefTable$addColumnInfo(name = "testStatistic", title = testStatTitle, type = "number")
   coefTable$addColumnInfo(name = "pVal", title = gettext("p"), type = "pvalue")
 
   jaspResults[["coefTable"]] <- coefTable
@@ -353,6 +356,89 @@
   return()
 }
 
+
+.assumptionCheckContainerPD <- function(jaspResults, dataset, options, ready) {
+  if (!is.null(jaspResults[["assumptionChecks"]]))
+    return()
+
+  assumptionChecks <- createJaspContainer(title = gettext("Assumption Checks"))
+  assumptionChecks$position <- 5
+  assumptionChecks$dependOn(c(.inputFieldNamesPD(), "hausmanTest", "effects"))
+  jaspResults[["assumptionChecks"]] <- assumptionChecks
+
+  .hausmanTestTablePD(jaspResults, dataset, options, ready)
+
+  return()
+}
+
+.hausmanTestTablePD <- function(jaspResults, dataset, options, ready) {
+  container <- jaspResults[["assumptionChecks"]]
+
+  if (!is.null(container[["hausmanTestTable"]]))
+    return()
+
+  hausmanTestTable <- createJaspTable(title = gettext("Hausman Test"))
+  hausmanTestTable$position <- 1
+  hausmanTestTable$dependOn(c(.inputFieldNamesPD(), "hausmanTest", "effects"))
+
+  hausmanTestTable$addColumnInfo(name = "chiSq",  title = gettext("\u03C7\u00B2"), type = "number")
+  hausmanTestTable$addColumnInfo(name = "df",     title = gettext("df"),            type = "integer")
+  hausmanTestTable$addColumnInfo(name = "pVal",   title = gettext("p"),             type = "pvalue")
+
+  container[["hausmanTestTable"]] <- hausmanTestTable
+
+  if (!ready || jaspResults[["modelSummaryTable"]]$getError())
+    return()
+
+  .fillHausmanTestTablePD(jaspResults, dataset, options)
+
+  return()
+}
+
+.fillHausmanTestTablePD <- function(jaspResults, dataset, options) {
+  container <- jaspResults[["assumptionChecks"]]
+
+  # The Hausman test compares fixed and random effects models,
+  # so we need to fit both regardless of which analysis was selected.
+
+  if (!options$idOnly) {
+    plmDf <- plm::pdata.frame(dataset,
+                              index = c(options$id, options$time))
+  } else {
+    plmDf <- plm::pdata.frame(dataset,
+                              index = length(unique(dataset[[options$id]])))
+  }
+
+  form <- .createFormulaPD(options)
+
+  feFit <- try(plm::plm(formula = form, data = plmDf, model = "within", effect = options$effects), silent = TRUE)
+  reFit <- try(plm::plm(formula = form, data = plmDf, model = "random", effect = options$effects), silent = TRUE)
+
+  if (isTryError(feFit) || isTryError(reFit)) {
+    err <- if (isTryError(feFit)) feFit[1] else reFit[1]
+    container[["hausmanTestTable"]]$setError(
+      gettext(paste("The Hausman test could not be performed because\n", err))
+    )
+    return()
+  }
+
+  ht <- try(plm::phtest(feFit, reFit), silent = TRUE)
+
+  if (isTryError(ht)) {
+    container[["hausmanTestTable"]]$setError(
+      gettext(paste("The Hausman test failed because\n", ht[1]))
+    )
+    return()
+  }
+
+  container[["hausmanTestTable"]]$addRows(list(
+    chiSq = ht$statistic,
+    df    = ht$parameter,
+    pVal  = ht$p.value
+  ))
+
+  return()
+}
 
 
 ####################### Dependency Helpers #######################

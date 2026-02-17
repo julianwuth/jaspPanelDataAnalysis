@@ -20,4 +20,6 @@ Form
         Common.Effects{}
         Common.Plot{}
     }
+
+    Common.AssumptionChecks{}
 }
