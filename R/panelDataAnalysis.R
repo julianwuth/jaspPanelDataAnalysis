@@ -5,8 +5,10 @@ panelDataAnalysis <- function(jaspResults, dataset, options) {
 
   ready <- .isReadyPD(dataset, options)
 
-  if(ready)
+  if(ready) {
     .checkErrorsPD(dataset, options)
+    options <- .rewriteOptionsPD(options, analysis = "within")
+  }
 
   .fitModelPD(jaspResults, dataset, options, ready)
 
