@@ -11,5 +11,4 @@ Form
         Common.Coefficients{}
         Common.Effects{}
     }
-
 }

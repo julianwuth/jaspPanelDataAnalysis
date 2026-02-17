@@ -97,6 +97,14 @@ Description
 
 	Analysis
 	{
+		title: qsTr("Hausman-Taylor Model")
+		func: "htModel"
+		qml: "HTModel.qml"
+		requiresData: false
+	}
+
+	Analysis
+	{
 		title: qsTr("Pooling Model")
 		func: "poolingModel"
 		qml: "PoolingModel.qml"
@@ -119,5 +127,34 @@ Description
 		requiresData: false
 	}
 
+	Separator{}
 
+	GroupTitle
+	{
+		title: qsTr("Advanced Models")
+	}
+
+	Analysis
+	{
+		title: qsTr("Variable Coefficients Models")
+		func: "vcmModel"
+		qml: "VCMModel.qml"
+		requiresData: false
+	}
+
+	Analysis
+	{
+		title: qsTr("Generalized Method of Moments")
+		func: "gmmModel"
+		qml: "GMMModel.qml"
+		requiresData: false
+	}
+
+	Analysis
+	{
+		title: qsTr("General Feasible Generalized Least Squares")
+		func: "pgglsModel"
+		qml: "PGGLSModel.qml"
+		requiresData: false
+	}
 }
