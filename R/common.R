@@ -59,6 +59,8 @@
   if(!ready)
     return()
 
+  # if there is only an id specified, the plm dataframe needs to be created
+  # with different arguments
   if (!options$idOnly) {
     plmDf <- plm::pdata.frame(dataset,
                               index = c(options$id, options$time))
@@ -68,6 +70,7 @@
 
   form <- .createFormulaPD(options)
 
+  # for some models, different estimators can be specified through the interface
   if(!is.null(options$estimators)) {
 
     plmFit <- try(
@@ -95,12 +98,15 @@
 
   indVarNames <- c()
 
+  # if covariates are specified, add them to the IVs
   if(length(options$covariates) > 0)
     indVarNames <- c(indVarNames, options$covariates)
 
+  # if factors are specified, add them to the IVs
   if(length(options$factors) > 0)
     indVarNames <- c(indVarNames, options$factors)
 
+  # paste them together in lm formula style
   indVarFormula <- paste(indVarNames, collapse = " + ")
 
   fullFormula <- as.formula(paste(depVarNames, indVarFormula, sep = " ~ "))
@@ -136,6 +142,9 @@
 }
 
 .fillModelSummaryTable <- function(jaspResults, dataset, options) {
+
+  # check if the model fitting resulted in an error
+  # in that case, we would like an infomative error message
   if(isTryError(jaspResults[["modelFit"]]$object)) { # TODO: check if this works
     e <- jaspResults[["modelFit"]]$object[1]
     jaspResults[["modelSummaryTable"]]$setError(
@@ -144,6 +153,7 @@
     return()
   }
 
+  # relevant numbers can be extracted from the summary
   modelSum <- summary(jaspResults[["modelFit"]]$object)
 
   df1 <- modelSum$fstatistic$parameter[1]
@@ -184,12 +194,14 @@
 
   jaspResults[["coefTable"]] <- coefTable
 
+  # if the model could not be fitted to begin with, we just return this empty
+  # since the model summary table already contains the error message
   if(!ready || jaspResults[["modelSummaryTable"]]$getError())
     return()
 
   coefDat <- summary(jaspResults[["modelFit"]]$object)$coefficients
-  coefDat <- cbind(rownames(coefDat), coefDat)
-  colnames(coefDat) <- NULL
+  coefDat <- cbind(rownames(coefDat), coefDat) # add names
+  colnames(coefDat) <- NULL # remove colnames, so we can use setData below
   coefTable$setData(coefDat)
 
   return()
@@ -210,6 +222,8 @@
 
   jaspResults[["randEffTable"]] <- randEffTable
 
+  # if the model could not be fitted to begin with, we just return this empty
+  # since the model summary table already contains the error message
   if (!ready || jaspResults[["modelSummaryTable"]]$getError())
     return()
 
@@ -221,7 +235,7 @@
 .fillRandEffTablePD <- function(jaspResults, dataset, options) {
   plmFit <- jaspResults[["modelFit"]]$object
 
-  ec <- plm::ercomp(plmFit)
+  ec <- plm::ercomp(plmFit) # gets random effect variances
   variance <- ec$sigma2
   totalVar <- sum(variance)
   # TODO: also add the correlation (theta) to the output
@@ -255,6 +269,7 @@
   fixedEffTable$addColumnInfo(name = "effect",   title = gettext("Name"),      type = "string")
   fixedEffTable$addColumnInfo(name = "estimate",       title = gettext("Estimate"),  type = "number")
 
+  # For effects == "twoways", the below are not available
   if(options$effects != "twoways") {
     fixedEffTable$addColumnInfo(name = "se",             title = gettext("SE"),        type = "number")
     fixedEffTable$addColumnInfo(name = "testStatistic",  title = gettext("t"),         type = "number")
@@ -264,6 +279,8 @@
 
   jaspResults[["fixedEffTable"]] <- fixedEffTable
 
+  # if the model could not be fitted to begin with, we just return this empty
+  # since the model summary table already contains the error message
   if (!ready || jaspResults[["modelSummaryTable"]]$getError())
     return()
 
@@ -275,8 +292,8 @@
 .fillFixedEffTablePD <- function(jaspResults, dataset, options) {
   plmFit <- jaspResults[["modelFit"]]$object
 
-  fe      <- plm::fixef(plmFit)
-  feSumm  <- summary(fe)
+  fe      <- plm::fixef(plmFit) # gets fixed effect estimates
+  feSumm  <- summary(fe) # tests on fixed effect estimates
   feTable <- as.data.frame(feSumm)
 
   for (i in seq_len(nrow(feTable))) {
