@@ -5,4 +5,7 @@ import JASP
 
 import './Common' as Common
 
-Form{Common.VariableInput{}}
+Form{
+    Common.VariableInput{}
+    Common.Coefficients
+    }

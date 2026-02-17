@@ -9,6 +9,7 @@ Group
 
     CheckBox
     {
+        id: step1
         name: "estimates"
         label: qsTr("Estimates")
 
@@ -18,10 +19,15 @@ Group
 
     CheckBox
     {
+        id: step2
         name: "robust_estimates"
         label: qsTr("Robust Estimates")
 
-    // We can add some extra control parameters
-        checked: false // Default value
+        enabled: step1.checked
+
+        onEnabledChanged: {
+            if (!enabled) checked = false
+        }
+
     }
 }

@@ -6,6 +6,6 @@ import JASP
 import './Common' as Common
 
 Form{
-    Text { text: qsTr("help") }
     Common.VariableInput{}
+    Common.Coefficients{}
     }
