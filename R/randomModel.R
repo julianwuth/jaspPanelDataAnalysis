@@ -19,5 +19,8 @@ randomModel <- function(jaspResults, dataset, options, analysis = "random") {
   if(options$randomEffects)
     .randEffTablePD(jaspResults, dataset, options, ready)
 
+  if(options$plot)
+    .createPlmPlot(jaspResults, dataset, options, ready)
+
   return()
 }
