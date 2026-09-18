@@ -4,59 +4,64 @@ import JASP
 
 Group
 {
-    VariablesForm
-    {
-        AvailableVariablesList { name: "allVariables" }
+	VariablesForm
+	{
+		AvailableVariablesList { name: "allVariables" }
 
-        AssignedVariablesList  {
-        name: "dependent"
-        label: qsTr("Dependent variables")
-        info: qsTr("")
-        singleVariable: false
-        allowedColumns: ["scale", "ordinal", "nominal"]
-        }
+		AssignedVariablesList
+		{
+			name:			"dependent"
+			label:			qsTr("Dependent variable")
+			info:			qsTr("The outcome variable that is modelled. Panel models take a single dependent variable.")
+			singleVariable:	true
+			allowedColumns:	["scale"]
+		}
 
-        AssignedVariablesList  {
-        name: "covariates"
-        label: qsTr("Covariates")
-        info: qsTr("")
-        singleVariable: false
-        allowedColumns: ["scale"]
-        }
+		AssignedVariablesList
+		{
+			name:			"covariates"
+			label:			qsTr("Covariates")
+			info:			qsTr("Continuous predictors entering the model.")
+			singleVariable:	false
+			allowedColumns:	["scale"]
+		}
 
-        AssignedVariablesList  {
-        name: "factors"
-        label: qsTr("Factors")
-        info: qsTr("")
-        singleVariable: false
-        allowedColumns: ["ordinal", "nominal"]
-        }
+		AssignedVariablesList
+		{
+			name:			"factors"
+			label:			qsTr("Factors")
+			info:			qsTr("Categorical predictors entering the model; they are expanded into dummy variables.")
+			singleVariable:	false
+			allowedColumns:	["ordinal", "nominal"]
+		}
 
-        AssignedVariablesList  {
-        name: "id"
-        label: qsTr("ID")
-        info: qsTr("")
-        singleVariable: true
-        allowedColumns: ["nominal"]
-        }
-        
-        AssignedVariablesList  {
-            name: "time"
-            label: qsTr("Time")
-            info: qsTr("")
-            singleVariable: true
-            allowedColumns: ["ordinal"]
-            enabled: !idOnly.checked
-            onEnabledChanged: if (!enabled && count > 0) itemDoubleClicked(0);
-        }
-    }
+		AssignedVariablesList
+		{
+			name:			"id"
+			label:			qsTr("ID")
+			info:			qsTr("The variable identifying the individuals (the cross-sectional dimension of the panel).")
+			singleVariable:	true
+			allowedColumns:	["nominal", "ordinal"]
+		}
 
-    CheckBox
-    {
-        name: "idOnly"
-        id: idOnly
-        label: qsTr("ID only")
-        checked: false
-        info: qsTr("If checked, only the ID variable needs to be specified. The time variable will be automatically created based on the assumption that the data is ordered correctly.")
-    } 
+		AssignedVariablesList
+		{
+			name:			"time"
+			label:			qsTr("Time")
+			info:			qsTr("The variable identifying the time periods (the longitudinal dimension of the panel).")
+			singleVariable:	true
+			allowedColumns:	["ordinal", "nominal"]
+			enabled:		!idOnly.checked
+			onEnabledChanged: if (!enabled && count > 0) itemDoubleClicked(0);
+		}
+	}
+
+	CheckBox
+	{
+		name:		"idOnly"
+		id:			idOnly
+		label:		qsTr("ID only")
+		checked:	false
+		info:		qsTr("If checked, only the ID variable needs to be specified. The time index is then derived from the row order within each individual, which assumes the data are sorted correctly.")
+	}
 }

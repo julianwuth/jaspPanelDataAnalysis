@@ -2,31 +2,32 @@ import QtQuick
 import JASP.Controls
 import JASP
 
-
 Group
 {
-    title: qsTr("Coefficients")
+	title: qsTr("Coefficients")
 
-    CheckBox
-    {
-        id: step1
-        name: "estimates"
-        label: qsTr("Estimates")
+	// plm only provides robust covariance matrices for the within, random,
+	// pooling and first-difference estimators
+	property bool allowRobust: true
 
-    // We can add some extra control parameters
-        checked: false // Default value
+	CheckBox
+	{
+		id:			estimates
+		name:		"estimates"
+		label:		qsTr("Estimates")
+		checked:	false
+		info:		qsTr("Display the estimated regression coefficients with their standard errors and tests.")
 
-        CheckBox
-        {
-            id: step2
-            name: "robust_estimates"
-            label: qsTr("Robust Estimates")
+		CheckBox
+		{
+			name:		"robustEstimates"
+			label:		qsTr("Robust standard errors")
+			checked:	false
+			visible:	allowRobust
+			enabled:	estimates.checked
+			info:		qsTr("Use heteroskedasticity and autocorrelation consistent (Arellano) standard errors clustered on the individuals.")
 
-            enabled: step1.checked
-
-            onEnabledChanged: {
-                if (!enabled) checked = false
-            }
-        }
-    }
+			onEnabledChanged: { if (!enabled) checked = false }
+		}
+	}
 }

@@ -1,29 +1,28 @@
 #' @import jaspBase
 #' @export
 randomModel <- function(jaspResults, dataset, options, analysis = "random") {
+  options <- .rewriteOptionsPD(options, analysis)
+  ready   <- .isReadyPD(options)
 
-  ready <- .isReadyPD(dataset, options)
-
-  if(ready) {
+  if (ready)
     .checkErrorsPD(dataset, options)
-    options <- .rewriteOptionsPD(options, analysis)
-  }
 
   .fitModelPD(jaspResults, dataset, options, ready)
 
   .modelSummaryTablePD(jaspResults, dataset, options, ready)
 
-  if(options$estimates)
-    .coefficientsTablePD(jaspResults, dataset, options, ready)
+  if (options[["estimates"]])
+    .coefficientsTablePD(jaspResults, dataset, options, ready,
+                         robust = options[["robustEstimates"]],
+                         deps   = c("estimates", "robustEstimates"))
 
-  if(options$randomEffects)
+  if (options[["randomEffects"]])
     .randEffTablePD(jaspResults, dataset, options, ready)
 
-  if(options$plot)
+  if (options[["plot"]])
     .createPlmPlot(jaspResults, dataset, options, ready)
 
-  if(options$hausmanTest) #TODO: change this logic to apply to all potential assumption checks
-    .assumptionCheckContainerPD(jaspResults, dataset, options, ready)
+  .hausmanTestPD(jaspResults, dataset, options, ready)
 
   return()
 }

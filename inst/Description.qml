@@ -23,18 +23,9 @@ Description
 
 	Analysis
 	{
-		title: qsTr("Panel data analysis")
-		func: "panelDataAnalysis"
-		qml: "panelDataAnalysis.qml"
-		requiresData: false
-	}
-
-	Analysis
-	{
 		title: qsTr("Fixed Effects Model")
 		func: "fixedModel"
 		qml: "FixedModel.qml"
-		requiresData: false
 	}
 
 	Analysis
@@ -42,7 +33,6 @@ Description
 		title: qsTr("Random Effects Model")
 		func: "randomModel"
 		qml: "RandomModel.qml"
-		requiresData: false
 	}
 
 	Analysis
@@ -50,7 +40,6 @@ Description
 		title: qsTr("Hausman-Taylor Model")
 		func: "htModel"
 		qml: "HTModel.qml"
-		requiresData: false
 	}
 
 	Analysis
@@ -58,7 +47,6 @@ Description
 		title: qsTr("Pooling Model")
 		func: "poolingModel"
 		qml: "PoolingModel.qml"
-		requiresData: false
 	}
 
 	Analysis
@@ -66,7 +54,6 @@ Description
 		title: qsTr("First-Difference Model")
 		func: "firstDifferenceModel"
 		qml: "FirstDifferenceModel.qml"
-		requiresData: false
 	}
 
 	Analysis
@@ -74,7 +61,6 @@ Description
 		title: qsTr("Between Model")
 		func: "betweenModel"
 		qml: "BetweenModel.qml"
-		requiresData: false
 	}
 
 	Separator{}
@@ -89,7 +75,6 @@ Description
 		title: qsTr("Variable Coefficients Models")
 		func: "vcmModel"
 		qml: "VCMModel.qml"
-		requiresData: false
 	}
 
 	Analysis
@@ -97,7 +82,6 @@ Description
 		title: qsTr("Generalized Method of Moments")
 		func: "gmmModel"
 		qml: "GMMModel.qml"
-		requiresData: false
 	}
 
 	Analysis
@@ -105,6 +89,5 @@ Description
 		title: qsTr("General Feasible Generalized Least Squares")
 		func: "pgglsModel"
 		qml: "PGGLSModel.qml"
-		requiresData: false
 	}
 }
