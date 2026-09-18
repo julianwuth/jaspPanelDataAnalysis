@@ -32,4 +32,6 @@ Form
         
         Common.Plot{}
     }
+
+    Common.AssumptionChecks{}
 }
