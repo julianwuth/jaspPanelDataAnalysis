@@ -43,6 +43,9 @@ NULL
   "instrumentLagMin", "instrumentLagMax", "collapseInstruments"
 )
 
+# the analyses whose QML offers the "effects" option
+.pdAnalysesWithEffects <- c("within", "random", "between", "vcm", "pggls", "gmm")
+
 .pdCitation <- "Croissant, Y., & Millo, G. (2008). Panel data econometrics in R: The plm package. Journal of Statistical Software, 27(2), 1-43."
 
 
@@ -128,20 +131,47 @@ NULL
              all.target           = modelVariables[vapply(dataset[modelVariables], is.numeric, logical(1))],
              exitAnalysisIfErrors = TRUE)
 
-  # the between estimator collapses the panel to one row per group, so a
-  # standard error needs at least three groups
-  if (options[["analysis"]] == "between") {
-    groupVariable <- if (options[["effects"]] == "time") options[["time"]] else options[["id"]]
+  .hasErrors(dataset              = dataset,
+             type                 = "variance",
+             all.target           = options[["dependent"]],
+             exitAnalysisIfErrors = TRUE)
 
-    if (groupVariable != "" && !is.null(dataset[[groupVariable]])) {
-      nGroups <- length(unique(dataset[[groupVariable]]))
-
-      if (nGroups < 3)
-        .quitAnalysis(gettextf("The between estimator requires at least 3 groups, but only %1$s were found.", nGroups))
-    }
-  }
+  .checkPanelStructurePD(dataset, options)
 
   return()
+}
+
+.checkPanelStructurePD <- function(dataset, options) {
+  if (options[["idOnly"]])
+    return()
+
+  indexVariables <- .indexVariablesPD(options)
+  indexData      <- dataset[stats::complete.cases(dataset[indexVariables]), indexVariables, drop = FALSE]
+
+  # plm only warns about these and then estimates a different model
+  if (anyDuplicated(indexData) > 0)
+    .quitAnalysis(gettextf("Each combination of %1$s and %2$s must occur only once, but some combinations occur more than once.",
+                           jaspBase::decodeColNames(options[["id"]]), jaspBase::decodeColNames(options[["time"]])))
+
+  if (.timeOrderMattersPD(options) && !.hasTimeOrderPD(dataset[[options[["time"]]]]))
+    .quitAnalysis(gettextf("This model depends on the order of the time periods, so %s must be an ordinal variable or have numeric labels.",
+                           jaspBase::decodeColNames(options[["time"]])))
+
+  return()
+}
+
+# differences and lags use the order of the periods, the other estimators do not
+.timeOrderMattersPD <- function(options) {
+  analysis <- options[["analysis"]]
+
+  return(analysis %in% c("fd", "gmm") || (analysis == "pggls" && options[["pgglsEstimator"]] == "fd"))
+}
+
+.hasTimeOrderPD <- function(time) {
+  if (is.ordered(time) || is.numeric(time))
+    return(TRUE)
+
+  return(!anyNA(suppressWarnings(as.numeric(levels(as.factor(time))))))
 }
 
 
@@ -161,9 +191,38 @@ NULL
   if (!ready)
     return(NULL)
 
-  panelData$object <- try(plm::pdata.frame(dataset, index = .indexVariablesPD(options)), silent = TRUE)
+  panelData$object <- try(
+    plm::pdata.frame(.panelDatasetPD(dataset, options), index = .indexVariablesPD(options)),
+    silent = TRUE
+  )
 
   return(panelData$object)
+}
+
+.panelDatasetPD <- function(dataset, options) {
+  # a row without an id or period has no place in the panel, and lag() crashes R on it
+  dataset <- dataset[stats::complete.cases(dataset[.indexVariablesPD(options)]), , drop = FALSE]
+
+  # ordered factors would otherwise enter with polynomial contrasts
+  for (regressor in .regressorsPD(options))
+    if (is.ordered(dataset[[regressor]]))
+      dataset[[regressor]] <- factor(dataset[[regressor]], ordered = FALSE)
+
+  if (!options[["idOnly"]])
+    dataset[[options[["time"]]]] <- .sortTimeLevelsPD(dataset[[options[["time"]]]])
+
+  return(dataset)
+}
+
+# plm orders the periods by factor level, and numeric labels may be sorted as text
+.sortTimeLevelsPD <- function(time) {
+  time          <- droplevels(as.factor(time))
+  numericLabels <- suppressWarnings(as.numeric(levels(time)))
+
+  if (anyNA(numericLabels))
+    return(time)
+
+  return(factor(time, levels = levels(time)[order(numericLabels)]))
 }
 
 
@@ -262,6 +321,10 @@ NULL
     # "within" and "between"
     plm::plm(formula, data = plmDf, model = analysis, effect = options[["effects"]])
   )
+
+  # without residual degrees of freedom every standard error is undefined
+  if (inherits(fit, "plm") && stats::df.residual(fit) <= 0)
+    stop(gettext("There are too few observations for the number of estimated coefficients."), call. = FALSE)
 
   return(fit)
 }
@@ -367,12 +430,12 @@ NULL
   if (!ready)
     return()
 
-  .fillModelSummaryTablePD(jaspResults, options)
+  .fillModelSummaryTablePD(jaspResults, dataset, options)
 
   return()
 }
 
-.fillModelSummaryTablePD <- function(jaspResults, options) {
+.fillModelSummaryTablePD <- function(jaspResults, dataset, options) {
   modelSummaryTable <- jaspResults[["modelSummaryTable"]]
   fit               <- jaspResults[["modelFit"]]$object
 
@@ -410,8 +473,46 @@ NULL
   }
 
   modelSummaryTable$addRows(row)
+  .addPanelFootnotesPD(modelSummaryTable, dataset, options)
 
   return()
+}
+
+# describes the panel that was actually used
+.addPanelFootnotesPD <- function(table, dataset, options) {
+  indexVariables <- .indexVariablesPD(options)
+  used           <- stats::complete.cases(dataset[c(options[["dependent"]], .regressorsPD(options), indexVariables)])
+  individuals    <- dataset[[options[["id"]]]][used]
+  nPeriods       <- if (options[["idOnly"]]) max(table(individuals)) else length(unique(dataset[[options[["time"]]]][used]))
+
+  table$addFootnote(gettextf("Estimated from %1$s observations on %2$s individuals over %3$s time periods.",
+                             sum(used), length(unique(individuals)), nPeriods))
+
+  if (!all(used))
+    table$addFootnote(gettextf("Rows excluded because of missing values: %s.", sum(!used)))
+
+  if (options[["idOnly"]] && options[["analysis"]] %in% .pdAnalysesWithEffects && options[["effects"]] != "individual")
+    table$addFootnote(gettext("With 'ID only' the periods are numbered within each individual, so time effects compare the n-th observation of each individual rather than calendar periods."),
+                      symbol = gettext("Warning:"))
+
+  if (!options[["idOnly"]] && .timeOrderMattersPD(options) && .timeLabelsLookUnsortedPD(dataset[[options[["time"]]]]))
+    table$addFootnote(gettextf("The numbers in the labels of %s do not increase with the order of its levels; check that the levels are in chronological order.",
+                               jaspBase::decodeColNames(options[["time"]])),
+                      symbol = gettext("Warning:"))
+
+  return()
+}
+
+# for example "t1", "t10", "t2"
+.timeLabelsLookUnsortedPD <- function(time) {
+  timeLevels <- levels(droplevels(as.factor(time)))
+
+  if (!anyNA(suppressWarnings(as.numeric(timeLevels))))
+    return(FALSE)
+
+  labelNumbers <- suppressWarnings(as.numeric(gsub("[^0-9]+", "", timeLevels)))
+
+  return(!anyNA(labelNumbers) && anyDuplicated(labelNumbers) == 0 && is.unsorted(labelNumbers))
 }
 
 # the Windmeijer correction for two-step GMM is applied by summary(), not by a
@@ -932,9 +1033,23 @@ NULL
 
 .cleanErrorPD <- function(tryError) {
   condition <- attr(tryError, "condition")
+  message   <- if (!is.null(condition)) conditionMessage(condition) else gsub("^Error[^:]*: *", "", as.character(tryError)[1])
 
-  if (!is.null(condition))
-    return(trimws(conditionMessage(condition)))
+  return(.explainErrorPD(trimws(message)))
+}
 
-  return(trimws(gsub("^Error[^:]*: *", "", as.character(tryError)[1])))
+# plm and base R report these from deep inside the estimation
+.explainErrorPD <- function(message) {
+  if (grepl("empty model", message, fixed = TRUE))
+    return(gettext("No regressors remain after the transformation: they are all constant or collinear."))
+
+  if (grepl("singular", message, fixed = TRUE))
+    return(gettext("The estimating equations are singular. Check for collinear or constant regressors, and for too few observations or instruments."))
+
+  rawErrors <- "subscript out of bounds|negative subscripts|number of rows of matrices|invalid 'nrow'|NA/NaN/Inf in|infinite or missing values|Zero-length component|incorrect number of subscripts"
+
+  if (grepl(rawErrors, message))
+    return(gettext("The panel is too small for this model, or it contains constant or collinear regressors."))
+
+  return(message)
 }

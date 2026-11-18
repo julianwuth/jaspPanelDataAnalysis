@@ -4,6 +4,9 @@
 # options: jaspTools::analysisOptions() cannot see the QML components imported from
 # inst/qml/Common, and test-qml-options.R checks these defaults against the QML.
 
+# pgmm(), pggls() and pvcm() evaluate a bare `plm(...)` call in their caller's frame
+plm <- plm::plm
+
 .panelBaseOptions <- list(
   dependent = "",
   covariates = list(),
