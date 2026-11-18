@@ -6,7 +6,7 @@ Group
 {
 	title: qsTr("Coefficients")
 
-	// plm only provides robust covariance matrices for the within, random,
+	// valid robust covariance matrices are only available for the within, random,
 	// pooling and first-difference estimators
 	property bool allowRobust: true
 
@@ -25,7 +25,7 @@ Group
 			checked:	false
 			visible:	allowRobust
 			enabled:	estimates.checked
-			info:		qsTr("Use heteroskedasticity and autocorrelation consistent (Arellano) standard errors clustered on the individuals.")
+			info:		qsTr("Use heteroskedasticity and autocorrelation consistent (Arellano) standard errors clustered on the individuals. The overall test and the Hausman test then use the same robust covariance information.")
 
 			onEnabledChanged: { if (!enabled) checked = false }
 		}

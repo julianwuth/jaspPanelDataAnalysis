@@ -12,9 +12,7 @@ betweenModel <- function(jaspResults, dataset, options, analysis = "between") {
   .modelSummaryTablePD(jaspResults, dataset, options, ready)
 
   if (options[["estimates"]])
-    .coefficientsTablePD(jaspResults, dataset, options, ready,
-                         robust = options[["robustEstimates"]],
-                         deps   = c("estimates", "robustEstimates"))
+    .coefficientsTablePD(jaspResults, dataset, options, ready, deps = "estimates")
 
   if (options[["plot"]])
     .createPlmPlot(jaspResults, dataset, options, ready)

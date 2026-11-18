@@ -17,7 +17,7 @@ Form
 		CheckBox
 		{
 			name:		"randomEffects"
-			label:		qsTr("Random effect estimates")
+			label:		qsTr("Variance components")
 			checked:	false
 			info:		qsTr("Display the estimated variance components of the error decomposition.")
 		}

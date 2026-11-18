@@ -11,7 +11,7 @@ Section
 		name:		"lmTest"
 		label:		qsTr("Lagrange multiplier test")
 		checked:	false
-		info:		qsTr("Breusch-Pagan type test for the presence of random effects in a pooled model.")
+		info:		qsTr("Tests whether the variance of the unobserved effect is zero, assuming homoskedastic and serially uncorrelated errors. A rejection can also reflect serial correlation or heteroskedasticity, so it does not establish a random effects structure.")
 
 		RadioButtonGroup
 		{

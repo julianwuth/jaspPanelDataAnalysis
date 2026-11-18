@@ -27,7 +27,7 @@ test_that("fixedModel results match", {
 
   table <- results[["results"]][["modelSummaryTable"]][["data"]]
   jaspTools::expect_equal_tables(table,
-    list(-0.0441504037974934, 3, 888, "Fixed effects", 4.04430448557162e-20,
+    list(0.0967592138023625, 3, 888, "Fixed effects", 4.04430448557162e-20,
      0.0998004285707047, 32.8159752509378))
 })
 
@@ -37,7 +37,7 @@ test_that("randomModel results match", {
 
   table <- results[["results"]][["assumptionChecks"]][["collection"]][["assumptionChecks_hausmanTestTable"]][["data"]]
   jaspTools::expect_equal_tables(table,
-    list(102.289263531546, 3, 5.00275119864689e-22))
+    list(101.325902964414, 3, 8.06091671890478e-22))
 
   table <- results[["results"]][["coefTable"]][["data"]]
   jaspTools::expect_equal_tables(table,

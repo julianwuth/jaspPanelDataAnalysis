@@ -297,11 +297,9 @@ NULL
   fit <- switch(analysis,
     # first differences are only defined for individual effects, and the
     # pooling estimator applies no transformation at all
-    "fd"      = plm::plm(formula, data = plmDf, model = "fd"),
+    "fd"      = .fitFirstDifferencePD(formula, plmDf, options),
     "pooling" = plm::plm(formula, data = plmDf, model = "pooling"),
-    "random"  = plm::plm(formula, data = plmDf, model = "random",
-                         effect        = options[["effects"]],
-                         random.method = options[["estimators"]]),
+    "random"  = .fitRandomEffectsPD(formula, plmDf, options),
     # the Hausman-Taylor estimator is only defined for individual effects
     "ht"      = plm::plm(formula, data = plmDf, model = "random",
                          effect        = "individual",
@@ -329,6 +327,90 @@ NULL
   return(fit)
 }
 
+.fitRandomEffectsPD <- function(formula, plmDf, options) {
+  fit <- plm::plm(formula, data = plmDf, model = "random",
+                  effect        = options[["effects"]],
+                  random.method = options[["estimators"]])
+
+  # for this case plm stores the GLS covariance matrix without its sigma_u^2 factor
+  if (.isUnbalancedTwoWaysRandomPD(fit))
+    fit[["vcov"]] <- fit[["vcov"]] * fit[["ercomp"]][["sigma2"]][["idios"]]
+
+  return(fit)
+}
+
+.isUnbalancedTwoWaysRandomPD <- function(fit) {
+  return(fit[["args"]][["model"]] == "random" && fit[["args"]][["effect"]] == "twoways" &&
+           !plm::pdim(fit)[["balanced"]])
+}
+
+# plm differences adjacent rows, whatever the time between them, so that a row lost
+# to a gap or a missing value would enter as a one-period change. Each run of
+# consecutive periods is therefore differenced separately.
+# (Wooldridge, 2002, pp. 279-280, Eqs. 10.63, 10.65)
+.fitFirstDifferencePD <- function(formula, plmDf, options) {
+  spells <- .consecutiveSpellsPD(plmDf, options)
+
+  if (spells[["nSkipped"]] == 0)
+    return(plm::plm(formula, data = plmDf, model = "fd"))
+
+  spellData <- as.data.frame(plmDf)[spells[["rows"]], , drop = FALSE]
+  spellData[[".pdSpell"]] <- factor(spells[["spell"]], levels = unique(spells[["spell"]]))
+  spellData[[".pdPeriod"]] <- spells[["time"]]
+
+  fit <- plm::plm(formula, data = plm::pdata.frame(spellData, index = c(".pdSpell", ".pdPeriod")), model = "fd")
+
+  # each spell loses its first row, and inference still clusters on the individual
+  cluster <- droplevels(spells[["id"]][duplicated(spells[["spell"]])])
+  fit[["pdDifferences"]] <- list(cluster = cluster, nSkipped = spells[["nSkipped"]])
+
+  return(fit)
+}
+
+.consecutiveSpellsPD <- function(plmDf, options) {
+  variables <- c(options[["dependent"]], .regressorsPD(options))
+  rows      <- stats::complete.cases(as.data.frame(plmDf)[variables])
+  index     <- plm::index(plmDf)
+  positions <- .timePositionsPD(index[[2]])[rows]
+  id        <- index[[1]][rows]
+
+  sameIndividual <- c(FALSE, id[-1] == id[-length(id)])
+  nextPeriod     <- c(FALSE, diff(positions) == 1)
+
+  return(list(
+    rows     = rows,
+    id       = id,
+    time     = index[[2]][rows],
+    spell    = cumsum(!(sameIndividual & nextPeriod)),
+    nSkipped = sum(sameIndividual & !nextPeriod)
+  ))
+}
+
+# Position of each observation on the time scale. Numeric labels keep their spacing,
+# in units of their greatest common step (so waves 1990, 1995, 2000 are adjacent),
+# other labels are taken to be consecutive.
+.timePositionsPD <- function(time) {
+  time          <- droplevels(as.factor(time))
+  numericLabels <- suppressWarnings(as.numeric(levels(time)))
+
+  if (anyNA(numericLabels) || any(numericLabels %% 1 != 0))
+    return(as.integer(time))
+
+  step <- Reduce(.greatestCommonDivisorPD, diff(sort(numericLabels)), 0)
+
+  return(if (step == 0) rep(1, length(time)) else ((numericLabels - min(numericLabels)) / step)[as.integer(time)])
+}
+
+.greatestCommonDivisorPD <- function(a, b) {
+  while (b != 0) {
+    remainder <- a %% b
+    a         <- b
+    b         <- remainder
+  }
+
+  return(a)
+}
+
 # Refits the panel with a different plm model, cached so that several tests can
 # share one estimation. Returns the fit or a try-error.
 .refitPD <- function(jaspResults, dataset, options, model) {
@@ -352,10 +434,14 @@ NULL
     return(refit$object)
   }
 
-  refit$object <- try(
-    plm::plm(.createFormulaPD(options), data = plmDf, model = model, effect = options[["effects"]]),
-    silent = TRUE
-  )
+  refitOptions               <- options
+  refitOptions[["analysis"]] <- model
+
+  # the fixed effects analysis has no estimator choice for the comparison model
+  if (options[["analysis"]] != "random")
+    refitOptions[["estimators"]] <- "swar"
+
+  refit$object <- try(.callEstimatorPD(.createFormulaPD(options), plmDf, refitOptions), silent = TRUE)
 
   return(refit$object)
 }
@@ -451,17 +537,14 @@ NULL
     return()
   }
 
-  row <- list(model = .modelLabelPD(options))
+  overallTest <- try(.overallTestObjectPD(fit, modelSummary, options), silent = TRUE)
 
-  # summary.plm reports rsq/adjrsq, summary.pggls and summary.pvcm a single rsqr
-  if (!is.null(modelSummary[["r.squared"]])) {
-    row[["rSq"]]    <- unname(modelSummary[["r.squared"]][["rsq"]])
-    row[["adjRSq"]] <- unname(modelSummary[["r.squared"]][["adjrsq"]])
-  } else if (!is.null(modelSummary[["rsqr"]])) {
-    row[["rSq"]]    <- unname(modelSummary[["rsqr"]])
+  if (isTryError(overallTest)) {
+    modelSummaryTable$setError(gettextf("The overall test could not be computed: %s", .cleanErrorPD(overallTest)))
+    return()
   }
 
-  overallTest <- .overallTestObjectPD(modelSummary, options)
+  row <- c(list(model = .modelLabelPD(options)), .rSquaredPD(fit, modelSummary, options))
 
   if (!is.null(overallTest)) {
     row[["statistic"]] <- unname(overallTest[["statistic"]])
@@ -474,8 +557,73 @@ NULL
 
   modelSummaryTable$addRows(row)
   .addPanelFootnotesPD(modelSummaryTable, dataset, options)
+  .addFitFootnotesPD(modelSummaryTable, fit, options)
 
   return()
+}
+
+.rSquaredPD <- function(fit, modelSummary, options) {
+  # summary.pggls and summary.pvcm report a single rsqr
+  if (is.null(modelSummary[["r.squared"]]))
+    return(if (is.null(modelSummary[["rsqr"]])) list() else list(rSq = unname(modelSummary[["rsqr"]])))
+
+  # here plm computes it from the untransformed data
+  if (inherits(fit, "plm") && .isUnbalancedTwoWaysRandomPD(fit))
+    return(list(rSq = NA, adjRSq = NA))
+
+  rSquared <- unname(modelSummary[["r.squared"]][["rsq"]])
+  adjusted <- unname(modelSummary[["r.squared"]][["adjrsq"]])
+
+  # plm uses n - 1 total degrees of freedom, but the demeaned data have n - N
+  # (Wooldridge, 2002, p. 271, Eq. 10.56)
+  if (options[["analysis"]] == "within") {
+    residualDf <- stats::df.residual(fit)
+    adjusted   <- 1 - (1 - rSquared) * (residualDf + length(stats::coef(fit))) / residualDf
+  }
+
+  return(list(rSq = rSquared, adjRSq = adjusted))
+}
+
+.addFitFootnotesPD <- function(table, fit, options) {
+  if (.robustRequestedPD(options))
+    table$addFootnote(gettext("The overall test uses the cluster-robust covariance matrix."))
+
+  if (!inherits(fit, "plm"))
+    return()
+
+  if (.isUnbalancedTwoWaysRandomPD(fit))
+    table$addFootnote(gettext("R-squared is not reported for two-way random effects on an unbalanced panel."))
+
+  nSkipped <- fit[["pdDifferences"]][["nSkipped"]]
+
+  if (!is.null(nSkipped))
+    table$addFootnote(gettextf("Changes spanning more than one period were not used: %s.", nSkipped))
+
+  if (options[["analysis"]] == "within" && options[["effects"]] == "twoways") {
+    index <- plm::index(fit)
+
+    if (.connectedComponentsPD(index[[1]], index[[2]]) > 1)
+      table$addFootnote(gettext("The individuals and periods do not form one connected panel, so the residual degrees of freedom are understated and the standard errors slightly too large."),
+                        symbol = gettext("Warning:"))
+  }
+
+  return()
+}
+
+# number of groups of individuals and periods linked by observations
+.connectedComponentsPD <- function(id, time) {
+  component <- as.integer(factor(id))
+
+  repeat {
+    linked <- stats::ave(stats::ave(component, time, FUN = min), id, FUN = min)
+
+    if (all(linked == component))
+      break
+
+    component <- linked
+  }
+
+  return(length(unique(component)))
 }
 
 # describes the panel that was actually used
@@ -524,7 +672,10 @@ NULL
   return(summary(fit))
 }
 
-.overallTestObjectPD <- function(modelSummary, options) {
+.overallTestObjectPD <- function(fit, modelSummary, options) {
+  if (.robustRequestedPD(options))
+    return(.robustOverallTestPD(fit, options))
+
   overallTest <- switch(options[["analysis"]],
     "gmm" = modelSummary[["wald.coef"]],
     "vcm" = modelSummary[["waldstatistic"]],
@@ -532,6 +683,26 @@ NULL
   )
 
   return(overallTest)
+}
+
+# The sum of squares form of the F statistic is invalid once the errors may be
+# heteroskedastic or serially correlated, so the Wald form with the robust matrix is
+# used (Wooldridge, 2002, p. 276).
+.robustOverallTestPD <- function(fit, options) {
+  robustVcov <- .robustVcovPD(fit)
+  terms      <- setdiff(rownames(robustVcov), "(Intercept)")
+  estimate   <- stats::coef(fit)[terms]
+  statistic  <- drop(crossprod(estimate, solve(robustVcov[terms, terms, drop = FALSE], estimate)))
+  nTerms     <- length(terms)
+
+  if (.overallTestPD(options) == "chisq")
+    return(list(statistic = statistic, parameter = nTerms,
+                p.value   = stats::pchisq(statistic, nTerms, lower.tail = FALSE)))
+
+  denominatorDf <- .nClustersPD(fit) - 1
+
+  return(list(statistic = statistic / nTerms, parameter = c(nTerms, denominatorDf),
+              p.value   = stats::pf(statistic / nTerms, nTerms, denominatorDf, lower.tail = FALSE)))
 }
 
 
@@ -545,7 +716,7 @@ NULL
   return(gettext("z"))
 }
 
-.coefficientsTablePD <- function(jaspResults, dataset, options, ready, robust = FALSE, deps = character(0)) {
+.coefficientsTablePD <- function(jaspResults, dataset, options, ready, deps = character(0)) {
   if (!is.null(jaspResults[["coefTable"]]))
     return()
 
@@ -558,7 +729,7 @@ NULL
   coefTable$addColumnInfo(name = "estimate",      title = gettext("Estimate"),    type = "number")
   coefTable$addColumnInfo(name = "se",            title = gettext("SE"),          type = "number")
   coefTable$addColumnInfo(name = "testStatistic", title = .coefTestLabelPD(options), type = "number")
-  coefTable$addColumnInfo(name = "pVal",          title = gettext("p"),           type = "pvalue")
+  coefTable$addColumnInfo(name = "pVal",          title = "p",                    type = "pvalue")
   coefTable$showSpecifiedColumnsOnly <- TRUE
 
   jaspResults[["coefTable"]] <- coefTable
@@ -572,7 +743,7 @@ NULL
   if (isTryError(fit))
     return()
 
-  coefficients <- try(.coefficientMatrixPD(fit, options, robust), silent = TRUE)
+  coefficients <- try(.coefficientMatrixPD(fit, options), silent = TRUE)
 
   if (isTryError(coefficients)) {
     coefTable$setError(gettextf("The coefficients could not be computed: %s", .cleanErrorPD(coefficients)))
@@ -580,15 +751,19 @@ NULL
   }
 
   coefTable$setData(.coefficientRowsPD(coefficients))
-
-  if (robust)
-    coefTable$addFootnote(gettext("Standard errors are heteroskedasticity and autocorrelation consistent (Arellano)."))
+  .addCoefficientFootnotesPD(coefTable, fit, options)
 
   return()
 }
 
-.coefficientMatrixPD <- function(fit, options, robust) {
-  if (robust)
+# robust inference is offered for the estimators with a valid plm covariance matrix;
+# the option can still be stored for analyses that hide its checkbox
+.robustRequestedPD <- function(options) {
+  return(options[["analysis"]] %in% c("within", "random", "pooling", "fd") && options[["robustEstimates"]])
+}
+
+.coefficientMatrixPD <- function(fit, options) {
+  if (.robustRequestedPD(options))
     return(.robustCoefficientMatrixPD(fit, options))
 
   modelSummary <- .modelSummaryObjectPD(fit, options)
@@ -600,17 +775,44 @@ NULL
   return(modelSummary[["coefficients"]])
 }
 
-# Arellano heteroskedasticity and autocorrelation consistent standard errors,
-# clustered on the individuals. The tests are built here rather than pulling in
-# lmtest for a five line computation.
+# Cluster-robust covariance matrix (Wooldridge, 2002, p. 275, Eq. 10.59).
+.robustVcovPD <- function(fit) {
+  if (.isUnbalancedTwoWaysRandomPD(fit))
+    stop(gettext("Robust standard errors are not available for two-way random effects on an unbalanced panel."), call. = FALSE)
+
+  differences <- fit[["pdDifferences"]]
+
+  if (is.null(differences))
+    return(plm::vcovHC(fit, method = "arellano", type = "HC0"))
+
+  regressors <- stats::model.matrix(fit)[, names(stats::coef(fit)), drop = FALSE]
+
+  return(.clusterSandwichPD(regressors, as.numeric(stats::residuals(fit)), differences[["cluster"]]))
+}
+
+.clusterSandwichPD <- function(regressors, residuals, cluster) {
+  bread  <- solve(crossprod(regressors))
+  scores <- rowsum(regressors * residuals, as.character(cluster))
+
+  return(bread %*% crossprod(scores) %*% bread)
+}
+
+.nClustersPD <- function(fit) {
+  differences <- fit[["pdDifferences"]]
+
+  return(if (is.null(differences)) plm::pdim(fit)[["nT"]][["n"]] else nlevels(differences[["cluster"]]))
+}
+
+# The tests are built here rather than pulling in lmtest for a five line computation.
 .robustCoefficientMatrixPD <- function(fit, options) {
-  robustVcov    <- plm::vcovHC(fit, method = "arellano", type = "HC0")
+  robustVcov    <- .robustVcovPD(fit)
   estimate      <- stats::coef(fit)[rownames(robustVcov)]
   standardError <- sqrt(diag(robustVcov))
   statistic     <- estimate / standardError
 
+  # the same reference distribution as the robust overall test
   pValue <- if (.overallTestPD(options) == "f")
-    2 * stats::pt(-abs(statistic), df = stats::df.residual(fit))
+    2 * stats::pt(-abs(statistic), df = .nClustersPD(fit) - 1)
   else
     2 * stats::pnorm(-abs(statistic))
 
@@ -631,6 +833,71 @@ NULL
   return(rows)
 }
 
+.addCoefficientFootnotesPD <- function(coefTable, fit, options) {
+  if (.robustRequestedPD(options)) {
+    coefTable$addFootnote(gettext("Standard errors are robust to heteroskedasticity and serial correlation (Arellano) and clustered on the individuals."))
+
+    # (Wooldridge, 2002, pp. 275-276): justified for T small relative to N
+    panelDimensions <- plm::pdim(fit)[["nT"]]
+
+    if (panelDimensions[["n"]] <= panelDimensions[["T"]])
+      coefTable$addFootnote(gettext("Robust standard errors require many individuals relative to the number of time periods."),
+                            symbol = gettext("Warning:"))
+  }
+
+  if (!inherits(fit, "plm"))
+    return()
+
+  dropped <- .droppedRegressorsPD(fit, options)
+
+  if (length(dropped) > 0)
+    coefTable$addFootnote(gettextf("Not estimated because they are constant after the transformation or collinear: %s.",
+                                   paste(jaspBase::decodeColNames(dropped), collapse = ", ")))
+
+  if (options[["analysis"]] == "fd" && "(Intercept)" %in% names(stats::coef(fit)))
+    coefTable$addFootnote(gettext("The intercept of the differenced equation is the coefficient of a linear time trend in the model in levels."))
+
+  if (options[["analysis"]] == "random")
+    .addZeroVarianceFootnotePD(coefTable, fit)
+
+  return()
+}
+
+.droppedRegressorsPD <- function(fit, options) {
+  if (!options[["analysis"]] %in% c("within", "random", "pooling", "fd", "between"))
+    return(character(0))
+
+  requested <- colnames(stats::model.matrix(fit, model = "pooling"))
+
+  return(setdiff(requested, c(names(stats::coef(fit)), "(Intercept)")))
+}
+
+# plm truncates a negative variance estimate at zero, which turns the estimator into
+# one without that effect (Wooldridge, 2002, p. 261).
+.addZeroVarianceFootnotePD <- function(table, fit) {
+  variance <- plm::ercomp(fit)[["sigma2"]]
+  zero     <- setdiff(names(variance)[variance <= 0], "idios")
+
+  if (length(zero) > 0)
+    table$addFootnote(gettextf("The estimated variance of the %s effect was zero or negative and was set to zero, so the estimates equal those of a model without this effect. This can indicate negative serial correlation or a misspecified model.",
+                               paste(vapply(zero, .componentLabelPD, character(1)), collapse = ", ")),
+                      symbol = gettext("Warning:"))
+
+  return()
+}
+
+.componentLabelPD <- function(component) {
+  label <- switch(component,
+    "idios" = gettext("idiosyncratic"),
+    "id"    = gettext("individual"),
+    "time"  = gettext("time"),
+    "total" = gettext("combined"),
+    component
+  )
+
+  return(label)
+}
+
 
 ####################### 8. Effect tables #######################
 
@@ -645,7 +912,7 @@ NULL
   fixedEffTable$dependOn(c(.pdModelDeps, "fixedEffects", "fixedEffectsType"))
   fixedEffTable$addCitation(.pdCitation)
 
-  # for two-ways models plm::fixef() only returns the estimates themselves
+  # for two-ways models plm provides no standard errors
   if (twoways)
     fixedEffTable$addColumnInfo(name = "type", title = gettext("Effect"), type = "string")
 
@@ -654,8 +921,8 @@ NULL
 
   if (!twoways) {
     fixedEffTable$addColumnInfo(name = "se",            title = gettext("SE"), type = "number")
-    fixedEffTable$addColumnInfo(name = "testStatistic", title = gettext("t"),  type = "number")
-    fixedEffTable$addColumnInfo(name = "pVal",          title = gettext("p"),  type = "pvalue")
+    fixedEffTable$addColumnInfo(name = "testStatistic", title = "t",           type = "number")
+    fixedEffTable$addColumnInfo(name = "pVal",          title = "p",           type = "pvalue")
   }
 
   jaspResults[["fixedEffTable"]] <- fixedEffTable
@@ -675,54 +942,132 @@ NULL
   if (isTryError(fit))
     return()
 
-  twoways <- options[["effects"]] == "twoways"
-  effects <- if (twoways) c("individual", "time") else options[["effects"]]
+  rows <- try(.fixedEffectRowsPD(fit, options), silent = TRUE)
+
+  if (isTryError(rows)) {
+    fixedEffTable$setError(gettextf("The fixed effects could not be computed: %s", .cleanErrorPD(rows)))
+    return()
+  }
+
+  fixedEffTable$setData(rows)
+
+  # (Wooldridge, 2002, p. 273)
+  fixedEffTable$addFootnote(gettext("The estimated effects are unbiased but not consistent when the number of time periods is fixed."))
+
+  if (options[["effects"]] == "twoways") {
+    fixedEffTable$addFootnote(gettext("Standard errors are not available for the effects of a two-ways model."))
+
+    if (options[["fixedEffectsType"]] == "level")
+      fixedEffTable$addFootnote(gettext("Each level includes the effect of the first category of the other dimension, so an individual and a time level cannot simply be added."))
+  } else if (.robustRequestedPD(options)) {
+    fixedEffTable$addFootnote(gettext("The standard errors in this table are not cluster-robust."))
+  }
+
+  return()
+}
+
+.fixedEffectRowsPD <- function(fit, options) {
+  if (options[["effects"]] == "twoways")
+    return(.twoWaysEffectRowsPD(fit, options))
+
+  effect       <- options[["effects"]]
+  type         <- options[["fixedEffectsType"]]
+  fixedEffects <- as.data.frame(summary(plm::fixef(fit, effect = effect, type = type)))
+
+  rows <- data.frame(
+    effect        = rownames(fixedEffects),
+    estimate      = fixedEffects[["Estimate"]],
+    se            = fixedEffects[["Std. Error"]],
+    testStatistic = fixedEffects[["t-value"]],
+    pVal          = fixedEffects[["Pr(>|t|)"]],
+    stringsAsFactors = FALSE
+  )
+
+  # plm reports the standard error of the level for this type
+  if (type == "dmean") {
+    rows[["se"]]            <- .demeanedEffectStandardErrorsPD(fit, effect)
+    rows[["testStatistic"]] <- rows[["estimate"]] / rows[["se"]]
+    rows[["pVal"]]          <- 2 * stats::pt(-abs(rows[["testStatistic"]]), df = stats::df.residual(fit))
+  }
+
+  return(rows)
+}
+
+# Standard error of c_i (Wooldridge, 2002, p. 273, Eq. 10.58) minus the
+# observation-weighted mean of all c_i.
+.demeanedEffectStandardErrorsPD <- function(fit, effect) {
+  terms    <- names(stats::coef(fit))
+  means    <- stats::model.matrix(stats::model.frame(fit), rhs = 1, model = "between", effect = effect)[, terms, drop = FALSE]
+  counts   <- plm::pdim(fit)[["Tint"]][[if (effect == "time") "nt" else "Ti"]]
+  nTotal   <- sum(counts)
+  centered <- sweep(means, 2, colSums(means * counts) / nTotal)
+  sigma2   <- stats::deviance(fit) / stats::df.residual(fit)
+
+  return(unname(sqrt(sigma2 * (1 / counts - 1 / nTotal) +
+                       rowSums((centered %*% stats::vcov(fit)[terms, terms, drop = FALSE]) * centered))))
+}
+
+# plm::fixef() is only correct for balanced two-ways panels: it removes the other
+# effect with one-way means and can attach values to the wrong period labels.
+.twoWaysEffectRowsPD <- function(fit, options) {
+  effects <- .twoWaysEffectsPD(fit)
+  type    <- options[["fixedEffectsType"]]
   rows    <- list()
 
-  for (effect in effects) {
-    fixedEffects <- try(
-      summary(plm::fixef(fit, effect = effect, type = options[["fixedEffectsType"]])),
-      silent = TRUE
+  for (effect in c("individual", "time")) {
+    level  <- effects[[effect]][["level"]]
+    counts <- effects[[effect]][["counts"]]
+    values <- switch(type,
+      "level"  = level,
+      "dfirst" = level[-1] - level[1],
+      "dmean"  = level - stats::weighted.mean(level, counts)
     )
 
-    if (isTryError(fixedEffects)) {
-      fixedEffTable$setError(gettextf("The fixed effects could not be computed: %s", .cleanErrorPD(fixedEffects)))
-      return()
-    }
-
-    fixedEffects <- as.data.frame(fixedEffects)
-
-    block <- data.frame(
-      effect   = rownames(fixedEffects),
-      estimate = fixedEffects[["Estimate"]],
+    rows[[effect]] <- data.frame(
+      type        = if (effect == "individual") gettext("Individual") else gettext("Time"),
+      effect      = names(values),
+      estimate    = unname(values),
+      .isNewGroup = c(TRUE, rep(FALSE, length(values) - 1)),
       stringsAsFactors = FALSE
     )
-
-    if (twoways) {
-      # plm reports the estimates of a two-ways model without standard errors,
-      # so the two blocks are labelled and separated instead
-      block <- cbind(
-        type        = if (effect == "individual") gettext("Individual") else gettext("Time"),
-        block,
-        .isNewGroup = c(TRUE, rep(FALSE, nrow(block) - 1))
-      )
-    } else {
-      block[["se"]]            <- fixedEffects[["Std. Error"]]
-      block[["testStatistic"]] <- fixedEffects[["t-value"]]
-      block[["pVal"]]          <- fixedEffects[["Pr(>|t|)"]]
-    }
-
-    rows[[effect]] <- block
   }
 
   rows <- do.call(rbind, rows)
   rownames(rows) <- NULL
-  fixedEffTable$setData(rows)
 
-  if (twoways)
-    fixedEffTable$addFootnote(gettext("plm does not provide standard errors for the effects of a two-ways model."))
+  return(rows)
+}
 
-  return()
+# Solves the two-way normal equations for the effects, with the first time effect as
+# the reference.
+.twoWaysEffectsPD <- function(fit) {
+  index <- plm::index(fit)
+  id    <- droplevels(as.factor(index[[1]]))
+  time  <- droplevels(as.factor(index[[2]]))
+  terms <- names(stats::coef(fit))
+
+  remainder <- as.numeric(fit[["model"]][[1]]) -
+    drop(stats::model.matrix(fit, model = "pooling")[, terms, drop = FALSE] %*% stats::coef(fit))
+
+  counts      <- unclass(table(id, time))
+  nPerId      <- rowSums(counts)
+  nPerPeriod  <- colSums(counts)
+  sumPerId    <- as.numeric(tapply(remainder, id, sum))
+  sumPerTime  <- as.numeric(tapply(remainder, time, sum))
+  system      <- diag(nPerPeriod, nrow = length(nPerPeriod)) - t(counts) %*% (counts / nPerId)
+  rightSide   <- sumPerTime - drop(t(counts) %*% (sumPerId / nPerId))
+  estimated   <- seq_along(nPerPeriod)[-1]
+
+  if (qr(system[estimated, estimated, drop = FALSE])[["rank"]] < length(estimated))
+    stop(gettext("The individuals and periods do not form one connected panel, so the effects are not separately identified."), call. = FALSE)
+
+  timeEffects <- c(0, solve(system[estimated, estimated, drop = FALSE], rightSide[estimated]))
+  idEffects   <- (sumPerId - drop(counts %*% timeEffects)) / nPerId
+
+  return(list(
+    individual = list(level = stats::setNames(idEffects, levels(id)), counts = nPerId),
+    time       = list(level = stats::setNames(timeEffects + idEffects[1], levels(time)), counts = nPerPeriod)
+  ))
 }
 
 .randEffTablePD <- function(jaspResults, dataset, options, ready) {
@@ -764,8 +1109,9 @@ NULL
     return()
   }
 
-  variance       <- errorComponents[["sigma2"]]
-  totalVariance  <- sum(variance)
+  variance      <- errorComponents[["sigma2"]]
+  totalVariance <- sum(variance)
+
   componentNames <- list(
     idios = gettext("Idiosyncratic"),
     id    = gettext("Individual"),
@@ -776,7 +1122,7 @@ NULL
     componentVariance <- variance[[component]]
 
     randEffTable$addRows(list(
-      component = if (!is.null(componentNames[[component]])) componentNames[[component]] else component,
+      component = componentNames[[component]],
       variance  = componentVariance,
       stddev    = sqrt(componentVariance),
       share     = componentVariance / totalVariance
@@ -787,6 +1133,8 @@ NULL
 
   if (!is.null(thetaFootnote))
     randEffTable$addFootnote(thetaFootnote)
+
+  .addZeroVarianceFootnotePD(randEffTable, fit)
 
   return()
 }
@@ -800,13 +1148,13 @@ NULL
 
   if (is.list(theta)) {
     parts <- vapply(names(theta), function(component) {
-      gettextf("%1$s: %2$s", component, .formatThetaPD(theta[[component]]))
+      paste0(.componentLabelPD(component), " ", .formatThetaPD(theta[[component]]))
     }, character(1))
 
-    return(gettextf("Transformation parameter θ — %s.", paste(parts, collapse = ", ")))
+    return(gettextf("Transformation parameter \u03B8: %s.", paste(parts, collapse = ", ")))
   }
 
-  return(gettextf("Transformation parameter θ = %s.", .formatThetaPD(theta)))
+  return(gettextf("Transformation parameter \u03B8 = %s.", .formatThetaPD(theta)))
 }
 
 .formatThetaPD <- function(theta) {
@@ -914,12 +1262,12 @@ NULL
 
   hausmanTestTable <- createJaspTable(title = gettext("Hausman Test"))
   hausmanTestTable$position <- 1
-  hausmanTestTable$dependOn("effects")
+  hausmanTestTable$dependOn(c("effects", "estimators", "robustEstimates"))
   hausmanTestTable$addCitation(.pdCitation)
 
-  hausmanTestTable$addColumnInfo(name = "chiSq", title = gettext("χ²"), type = "number")
-  hausmanTestTable$addColumnInfo(name = "df",    title = gettext("df"),           type = "integer")
-  hausmanTestTable$addColumnInfo(name = "pVal",  title = gettext("p"),            type = "pvalue")
+  hausmanTestTable$addColumnInfo(name = "chiSq", title = "\u03C7\u00B2", type = "number")
+  hausmanTestTable$addColumnInfo(name = "df",    title = "df",           type = "integer")
+  hausmanTestTable$addColumnInfo(name = "pVal",  title = "p",            type = "pvalue")
   hausmanTestTable$showSpecifiedColumnsOnly <- TRUE
 
   container[["hausmanTestTable"]] <- hausmanTestTable
@@ -938,7 +1286,7 @@ NULL
     return()
   }
 
-  hausmanTest <- try(plm::phtest(fixedFit, randomFit), silent = TRUE)
+  hausmanTest <- try(.hausmanStatisticPD(fixedFit, randomFit, options), silent = TRUE)
 
   if (isTryError(hausmanTest)) {
     hausmanTestTable$setError(gettextf("The Hausman test could not be performed: %s", .cleanErrorPD(hausmanTest)))
@@ -946,12 +1294,88 @@ NULL
   }
 
   hausmanTestTable$addRows(list(
-    chiSq = unname(hausmanTest[["statistic"]]),
-    df    = unname(hausmanTest[["parameter"]]),
-    pVal  = unname(hausmanTest[["p.value"]])
+    chiSq = hausmanTest[["statistic"]],
+    df    = hausmanTest[["df"]],
+    pVal  = stats::pchisq(hausmanTest[["statistic"]], hausmanTest[["df"]], lower.tail = FALSE)
   ))
 
+  hausmanTestTable$addFootnote(gettext("The null hypothesis is that the individual effects are uncorrelated with the regressors. Strict exogeneity is assumed under both hypotheses."))
+
+  hausmanTestTable$addFootnote(if (options[["robustEstimates"]])
+    gettext("Cluster-robust Wald test on the time-demeaned regressors added to the quasi-demeaned model.")
+  else
+    gettext("The classical form of the test assumes homoskedastic and serially uncorrelated errors."))
+
   return()
+}
+
+# Only coefficients of variables that vary across individuals and over time are
+# compared (Wooldridge, 2002, p. 289).
+.hausmanVariablesPD <- function(fixedFit, randomFit, options) {
+  common     <- setdiff(intersect(names(stats::coef(fixedFit)), names(stats::coef(randomFit))), "(Intercept)")
+  regressors <- stats::model.matrix(randomFit, model = "pooling")[, common, drop = FALSE]
+  index      <- plm::index(randomFit)
+  dimension  <- if (options[["effects"]] == "time") index[[1]] else index[[2]]
+
+  isAggregate <- apply(regressors, 2, function(regressor) {
+    all(tapply(regressor, dimension, function(values) length(unique(values)) == 1))
+  })
+
+  variables <- common[!isAggregate]
+
+  if (length(variables) == 0)
+    stop(gettext("No regressor varies across both individuals and time."), call. = FALSE)
+
+  return(variables)
+}
+
+# (Wooldridge, 2002, p. 289, Eq. 10.78)
+.hausmanStatisticPD <- function(fixedFit, randomFit, options) {
+  variables <- .hausmanVariablesPD(fixedFit, randomFit, options)
+
+  if (options[["robustEstimates"]])
+    return(.robustHausmanPD(fixedFit, randomFit, variables))
+
+  difference <- stats::coef(fixedFit)[variables] - stats::coef(randomFit)[variables]
+
+  # the same estimate of sigma_u^2 in both matrices keeps their difference positive
+  # definite (Wooldridge, 2002, p. 290)
+  fixedSigma2  <- stats::deviance(fixedFit) / stats::df.residual(fixedFit)
+  randomSigma2 <- if (.isUnbalancedTwoWaysRandomPD(randomFit))
+    randomFit[["ercomp"]][["sigma2"]][["idios"]]
+  else
+    stats::deviance(randomFit) / stats::df.residual(randomFit)
+
+  varianceDifference <- stats::vcov(fixedFit)[variables, variables, drop = FALSE] -
+    stats::vcov(randomFit)[variables, variables, drop = FALSE] * fixedSigma2 / randomSigma2
+
+  if (min(eigen(varianceDifference, symmetric = TRUE, only.values = TRUE)[["values"]]) <= 0)
+    stop(gettext("The difference between the two covariance matrices is not positive definite."), call. = FALSE)
+
+  statistic <- drop(crossprod(difference, solve(varianceDifference, difference)))
+
+  return(list(statistic = statistic, df = length(variables)))
+}
+
+# Robust form: Wald test of xi = 0 in the regression of the quasi-demeaned data on
+# the quasi-demeaned regressors and the time-demeaned variables
+# (Wooldridge, 2002, pp. 290-291, Eq. 10.79).
+.robustHausmanPD <- function(fixedFit, randomFit, variables) {
+  if (.isUnbalancedTwoWaysRandomPD(randomFit))
+    stop(gettext("Robust standard errors are not available for two-way random effects on an unbalanced panel."), call. = FALSE)
+
+  response <- as.numeric(plm::pmodel.response(randomFit, model = "random"))
+  demeaned <- stats::model.matrix(fixedFit)[, variables, drop = FALSE]
+  colnames(demeaned) <- paste0(".demeaned", seq_along(variables))
+
+  regressors  <- cbind(stats::model.matrix(randomFit, model = "random"), demeaned)
+  estimate    <- drop(solve(crossprod(regressors), crossprod(regressors, response)))
+  residuals   <- response - drop(regressors %*% estimate)
+  robustVcov  <- .clusterSandwichPD(regressors, residuals, plm::index(randomFit)[[1]])
+  tested      <- colnames(demeaned)
+  statistic   <- drop(crossprod(estimate[tested], solve(robustVcov[tested, tested, drop = FALSE], estimate[tested])))
+
+  return(list(statistic = statistic, df = length(variables)))
 }
 
 .lmTestPD <- function(jaspResults, options, ready) {
@@ -963,7 +1387,7 @@ NULL
   if (!is.null(container[["lmTestTable"]]))
     return()
 
-  lmTestTable <- createJaspTable(title = gettext("Lagrange Multiplier Test for Random Effects"))
+  lmTestTable <- createJaspTable(title = gettext("Lagrange Multiplier Test for Unobserved Effects"))
   lmTestTable$position <- 2
   lmTestTable$dependOn(c("lmTestEffects", "lmTestType"))
   lmTestTable$addCitation(.pdCitation)
@@ -971,8 +1395,8 @@ NULL
   lmTestTable$addColumnInfo(name = "test",      title = gettext("Test"),      type = "string")
   lmTestTable$addColumnInfo(name = "effect",    title = gettext("Effect"),    type = "string")
   lmTestTable$addColumnInfo(name = "statistic", title = gettext("Statistic"), type = "number")
-  lmTestTable$addColumnInfo(name = "df",        title = gettext("df"),        type = "integer")
-  lmTestTable$addColumnInfo(name = "pVal",      title = gettext("p"),         type = "pvalue")
+  lmTestTable$addColumnInfo(name = "df",        title = "df",                 type = "integer")
+  lmTestTable$addColumnInfo(name = "pVal",      title = "p",                  type = "pvalue")
   lmTestTable$showSpecifiedColumnsOnly <- TRUE
 
   container[["lmTestTable"]] <- lmTestTable
@@ -1006,16 +1430,40 @@ NULL
   degreesOfFreedom <- lmTest[["parameter"]]
 
   lmTestTable$addRows(list(
-    test      = lmTest[["method"]],
+    test      = .lmTestLabelPD(options[["lmTestType"]]),
     effect    = .effectLabelPD(options[["lmTestEffects"]]),
     statistic = unname(lmTest[["statistic"]]),
     df        = if (length(degreesOfFreedom) == 1) unname(degreesOfFreedom) else NA,
     pVal      = unname(lmTest[["p.value"]])
   ))
 
-  lmTestTable$addFootnote(gettextf("The test statistic follows a %s distribution.", names(lmTest[["statistic"]])))
+  lmTestTable$addFootnote(.lmDistributionFootnotePD(names(lmTest[["statistic"]])))
+
+  # (Wooldridge, 2002, pp. 264-265)
+  lmTestTable$addFootnote(gettext("The null hypothesis is that the variance of the unobserved effect is zero. The test assumes homoskedastic, serially uncorrelated errors; a rejection can also reflect serial correlation or heteroskedasticity and does not establish a random effects structure."))
 
   return()
+}
+
+.lmTestLabelPD <- function(type) {
+  label <- switch(type,
+    "honda" = gettext("Honda"),
+    "bp"    = gettext("Breusch-Pagan"),
+    "kw"    = gettext("King-Wu"),
+    "ghm"   = gettext("Gourieroux-Holly-Monfort")
+  )
+
+  return(label)
+}
+
+.lmDistributionFootnotePD <- function(distribution) {
+  footnote <- switch(distribution,
+    "normal"   = gettext("The statistic is asymptotically standard normal under the null hypothesis, and the p-value is one-sided."),
+    "chisq"    = gettext("The statistic is asymptotically chi-squared under the null hypothesis."),
+    "chibarsq" = gettext("The statistic asymptotically follows a mixture of chi-squared distributions under the null hypothesis.")
+  )
+
+  return(footnote)
 }
 
 .effectLabelPD <- function(effect) {
