@@ -3,10 +3,10 @@ import JASP.Module
 
 Description
 {
-	name		: "jaspPanelData"
+	name		: "jaspPanelDataAnalysis"
 	title		: qsTr("Panel Data")
 	description	: qsTr("Module for analyzing panel data")
-	version		: "0.1"
+	version		: "0.1.0"
 	author		: "JASP Team"
 	maintainer	: "JASP Team <info@jasp-stats.org>"
 	website		: "https://jasp-stats.org"

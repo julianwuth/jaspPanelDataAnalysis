@@ -17,8 +17,10 @@ Imports:
     stats,
     utils
 Suggests:
-  testthat
+    jaspTools,
+    testthat
 Remotes:
-  jasp-stats/jaspBase,
-  jasp-stats/jaspGraphs
+    jasp-stats/jaspBase,
+    jasp-stats/jaspGraphs,
+    jasp-stats/jaspTools
 RoxygenNote: 7.3.3

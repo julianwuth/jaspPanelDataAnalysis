@@ -3,3 +3,16 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^\.travis\.yml$
+^\.github$
+^\.claude$
+^\.codex$
+^\.agents$
+^\.vscode$
+^\.devcontainer$
+^\.mcp\.json$
+^\.editorconfig$
+^\.DS_Store$
+^AGENTS\.md$
+^MIGRATION\.md$
+^codex\.toml$
+^R/\.gitkeep$
