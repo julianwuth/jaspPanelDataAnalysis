@@ -158,6 +158,15 @@ test_that("GMM keeps valid estimates on the shortest usable panel", {
   expect_false("Arellano-Bond AR(2)" %in% panelColumn(results, "gmmTestsTable", "test"))
 })
 
+test_that("the GMM footnote counts the observations the estimator used", {
+  data    <- shortPanel(5)
+  options <- panelOptions("gmmModel", dependent = "y", covariates = c("x1", "x2"), id = "unit", time = "wave")
+  results <- runPanel("gmmModel", data, options)
+
+  # one lag and first differencing cost two of the five waves
+  expect_panelFootnote(results, "modelSummaryTable", "180 observations on 60 individuals over 3 time periods")
+})
+
 test_that("exactly identified GMM has no overidentification test", {
   options <- panelOptions("gmmModel", dependent = "y", covariates = "x1", id = "unit", time = "wave",
                           instrumentLagMax = 2L, collapseInstruments = TRUE)

@@ -60,6 +60,16 @@ test_that("first differences do not span gaps or removed rows", {
   expect_equal(panelCell(results, "coefTable", "estimate", "capital"), stats::coef(expected)[["capital"]], tolerance = 1e-8)
 })
 
+test_that("first differences warn when most changes span gaps", {
+  data <- grunfeld()
+  data <- data[as.numeric(as.character(data$year)) %in% c(1935, 1937, 1940, 1941, 1945), ]
+
+  results <- runPanel("firstDifferenceModel", data, staticOptions("firstDifferenceModel"))
+
+  expect_panelFootnote(results, "modelSummaryTable", "more than one period were not used: 30")
+  expect_panelFootnote(results, "modelSummaryTable", "recode it with non-numeric labels")
+})
+
 test_that("robust first differences cluster on the individual across gaps", {
   data <- grunfeld()
   year <- as.numeric(as.character(data$year))

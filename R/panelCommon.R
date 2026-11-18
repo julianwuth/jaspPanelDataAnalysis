@@ -93,7 +93,8 @@ NULL
 
 .isReadyPD <- function(options) {
   hasDependent <- length(options[["dependent"]]) == 1L && options[["dependent"]] != ""
-  hasIndex     <- options[["id"]] != "" && (options[["idOnly"]] || options[["time"]] != "")
+  hasIndex     <- length(options[["id"]]) == 1L && options[["id"]] != "" &&
+    (options[["idOnly"]] || (length(options[["time"]]) == 1L && options[["time"]] != ""))
 
   if (!hasDependent || !hasIndex)
     return(FALSE)
@@ -533,7 +534,7 @@ NULL
   }
 
   modelSummaryTable$addRows(row)
-  .addPanelFootnotesPD(modelSummaryTable, dataset, options)
+  .addPanelFootnotesPD(modelSummaryTable, dataset, options, fit)
   .addFitFootnotesPD(modelSummaryTable, fit, options)
 
   return()
@@ -586,8 +587,15 @@ NULL
 
   nSkipped <- fit[["pdDifferences"]][["nSkipped"]]
 
-  if (!is.null(nSkipped))
+  if (!is.null(nSkipped)) {
     table$addFootnote(gettextf("Changes spanning more than one period were not used: %s.", nSkipped))
+
+    # numeric labels keep their spacing, so irregular survey waves read as gaps
+    if (!options[["idOnly"]] && nSkipped > stats::nobs(fit))
+      table$addFootnote(gettextf("Most changes were not used because %s has gaps between consecutive observations. If its values are waves that should count as adjacent periods, recode it with non-numeric labels (for example w1, w2, ...).",
+                                 jaspBase::decodeColNames(options[["time"]])),
+                        symbol = gettext("Warning:"))
+  }
 
   if (options[["analysis"]] == "within" && options[["effects"]] == "twoways") {
     index <- plm::index(fit)
@@ -617,14 +625,19 @@ NULL
 }
 
 # describes the panel that was actually used
-.addPanelFootnotesPD <- function(table, dataset, options) {
+.addPanelFootnotesPD <- function(table, dataset, options, fit) {
   indexVariables <- .indexVariablesPD(options)
   used           <- stats::complete.cases(dataset[c(options[["dependent"]], .regressorsPD(options), indexVariables)])
   individuals    <- dataset[[options[["id"]]]][used]
   nPeriods       <- if (options[["idOnly"]]) max(table(individuals)) else length(unique(dataset[[options[["time"]]]][used]))
+  dimensions     <- list(nObs = sum(used), nIndividuals = length(unique(individuals)), nPeriods = nPeriods)
+
+  # the rows lost to lags and differencing do not enter the GMM estimator
+  if (options[["analysis"]] == "gmm")
+    dimensions <- .gmmDimensionsPD(fit)
 
   table$addFootnote(gettextf("Estimated from %1$s observations on %2$s individuals over %3$s time periods.",
-                             sum(used), length(unique(individuals)), nPeriods))
+                             dimensions[["nObs"]], dimensions[["nIndividuals"]], dimensions[["nPeriods"]]))
 
   if (!all(used))
     table$addFootnote(gettextf("Rows excluded because of missing values: %s.", sum(!used)))
@@ -639,6 +652,25 @@ NULL
                       symbol = gettext("Warning:"))
 
   return()
+}
+
+# pgmm puts every individual on the same balanced grid of periods, padding the
+# residuals of unused periods with zeros. System GMM stacks the T - TL1 differenced
+# equations on the T - TL2 = T - TL1 + 1 level equations, and every period it uses
+# has a level equation.
+.gmmDimensionsPD <- function(fit) {
+  residuals <- fit[["residuals"]]
+
+  if (fit[["args"]][["transformation"]] == "ld")
+    residuals <- lapply(residuals, function(residual) utils::tail(residual, (length(residual) + 1) %/% 2))
+
+  used <- do.call(rbind, lapply(residuals, function(residual) unname(residual) != 0))
+
+  return(list(
+    nObs         = sum(used),
+    nIndividuals = sum(rowSums(used) > 0),
+    nPeriods     = sum(colSums(used) > 0)
+  ))
 }
 
 # for example "t1", "t10", "t2"
@@ -825,10 +857,9 @@ NULL
   if (.robustRequestedPD(options)) {
     coefTable$addFootnote(gettext("Standard errors are robust to heteroskedasticity and serial correlation (Arellano) and clustered on the individuals."))
 
-    # (Wooldridge, 2002, pp. 275-276): justified for T small relative to N
-    panelDimensions <- plm::pdim(fit)[["nT"]]
-
-    if (panelDimensions[["n"]] <= panelDimensions[["T"]])
+    # (Wooldridge, 2002, pp. 275-276): justified for T small relative to N; after
+    # splitting first differences at gaps the clusters are still the individuals
+    if (.nClustersPD(fit) <= plm::pdim(fit)[["nT"]][["T"]])
       coefTable$addFootnote(gettext("Robust standard errors require many individuals relative to the number of time periods."),
                             symbol = gettext("Warning:"))
   }
@@ -903,7 +934,7 @@ NULL
 
   fixedEffTable <- createJaspTable(title = gettext("Fixed Effects"))
   fixedEffTable$position <- 3
-  fixedEffTable$dependOn(c(.pdModelDeps, "fixedEffects", "fixedEffectsType"))
+  fixedEffTable$dependOn(c(.pdModelDeps, "fixedEffects", "fixedEffectsType", "robustEstimates"))
   fixedEffTable$addCitation(.pdCitation)
 
   # for two-ways models plm provides no standard errors

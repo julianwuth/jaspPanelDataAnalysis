@@ -12,22 +12,19 @@ Group
 
 	CheckBox
 	{
-		id:			estimates
 		name:		"estimates"
 		label:		qsTr("Estimates")
 		checked:	false
 		info:		qsTr("Display the estimated regression coefficients with their standard errors and tests.")
+	}
 
-		CheckBox
-		{
-			name:		"robustEstimates"
-			label:		qsTr("Robust standard errors")
-			checked:	false
-			visible:	allowRobust
-			enabled:	estimates.checked
-			info:		qsTr("Use heteroskedasticity and autocorrelation consistent (Arellano) standard errors clustered on the individuals. The overall test and the Hausman test then use the same robust covariance information.")
-
-			onEnabledChanged: { if (!enabled) checked = false }
-		}
+	// also drives the overall and Hausman tests, so it does not require the estimates table
+	CheckBox
+	{
+		name:		"robustEstimates"
+		label:		qsTr("Robust standard errors")
+		checked:	false
+		visible:	allowRobust
+		info:		qsTr("Use heteroskedasticity and autocorrelation consistent (Arellano) standard errors clustered on the individuals, in the coefficients table, the overall test and the Hausman test.")
 	}
 }
