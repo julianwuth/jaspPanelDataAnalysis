@@ -18,6 +18,7 @@ Section
 			id:		lmTestEffects
 			name:	"lmTestEffects"
 			title:	qsTr("Effects")
+			info:	qsTr("The unobserved effects that are tested.")
 
 			RadioButton { value: "individual";	label: qsTr("Individual"); checked: true	}
 			RadioButton { value: "time";		label: qsTr("Time")							}
@@ -28,6 +29,7 @@ Section
 		{
 			name:	"lmTestType"
 			title:	qsTr("Test Statistic")
+			info:	qsTr("The form of the statistic. Honda and King-Wu are one-sided; the Gourieroux-Holly-Monfort statistic requires individual and time effects.")
 
 			RadioButton { value: "honda";	label: qsTr("Honda"); checked: true	}
 			RadioButton { value: "bp";		label: qsTr("Breusch-Pagan")		}

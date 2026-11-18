@@ -17,10 +17,12 @@ Imports:
     stats,
     utils
 Suggests:
+    jaspSyntax,
     jaspTools,
     testthat
 Remotes:
     jasp-stats/jaspBase,
     jasp-stats/jaspGraphs,
+    jasp-stats/jaspSyntax,
     jasp-stats/jaspTools
 RoxygenNote: 7.3.3

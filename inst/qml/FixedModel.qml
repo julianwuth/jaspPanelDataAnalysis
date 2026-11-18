@@ -25,6 +25,7 @@ Form
 			{
 				name:	"fixedEffectsType"
 				label:	qsTr("Type")
+				info:	qsTr("Report the effects as levels, as differences from the first category, or as deviations from their observation-weighted mean.")
 				values:
 				[
 					{ label: qsTr("Level"),					value: "level"	},

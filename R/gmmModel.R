@@ -78,14 +78,14 @@ gmmModel <- function(jaspResults, dataset, options, analysis = "gmm") {
 # summary.pgmm() fails as a whole when an AR test cannot be computed, which happens on
 # short panels where the estimates themselves are fine
 .gmmSummaryPD <- function(fit, robust) {
-  covariance   <- if (robust) plm::vcovHC(fit) else stats::vcov(fit)
+  covariance     <- if (robust) plm::vcovHC(fit) else stats::vcov(fit)
   testCovariance <- if (robust) covariance else NULL
-  estimate     <- stats::coef(fit)
-  standardError <- sqrt(diag(covariance))
-  statistic    <- estimate / standardError
-  nTimeTerms   <- if (fit[["args"]][["effect"]] == "twoways") length(fit[["args"]][["namest"]]) else 0
-  shown        <- seq_len(length(estimate) - nTimeTerms)
-  optional     <- function(expression) tryCatch(expression, error = function(e) NULL)
+  estimate       <- stats::coef(fit)
+  standardError  <- sqrt(diag(covariance))
+  statistic      <- estimate / standardError
+  nTimeTerms     <- if (fit[["args"]][["effect"]] == "twoways") length(fit[["args"]][["namest"]]) else 0
+  shown          <- seq_len(length(estimate) - nTimeTerms)
+  optional       <- function(expression) tryCatch(expression, error = function(e) NULL)
 
   coefficients <- cbind(estimate, standardError, statistic, 2 * stats::pnorm(-abs(statistic)))
 
@@ -121,9 +121,9 @@ gmmModel <- function(jaspResults, dataset, options, analysis = "gmm") {
   twoStepFit$dependOn(.pdModelDeps)
   jaspResults[["gmmTwoStepFit"]] <- twoStepFit
 
-  twoStepOptions                <- options
-  twoStepOptions[["gmmSteps"]]  <- "twosteps"
-  plmDf                         <- .pdataFramePD(jaspResults, dataset, options, TRUE)
+  twoStepOptions               <- options
+  twoStepOptions[["gmmSteps"]] <- "twosteps"
+  plmDf                        <- .pdataFramePD(jaspResults, dataset, options, TRUE)
 
   twoStepFit$object <- try(.callEstimatorPD(.createFormulaPD(options), plmDf, twoStepOptions), silent = TRUE)
 

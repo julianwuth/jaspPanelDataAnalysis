@@ -173,9 +173,9 @@ vcmModel <- function(jaspResults, dataset, options, analysis = "vcm") {
   vcmHomogeneityTable$dependOn(.pdModelDeps)
   vcmHomogeneityTable$addCitation(.pdCitation)
 
-  vcmHomogeneityTable$addColumnInfo(name = "chiSq", title = gettext("χ²"), type = "number")
-  vcmHomogeneityTable$addColumnInfo(name = "df",    title = gettext("df"),           type = "integer")
-  vcmHomogeneityTable$addColumnInfo(name = "pVal",  title = gettext("p"),            type = "pvalue")
+  vcmHomogeneityTable$addColumnInfo(name = "chiSq", title = "\u03C7\u00B2", type = "number")
+  vcmHomogeneityTable$addColumnInfo(name = "df",    title = "df",           type = "integer")
+  vcmHomogeneityTable$addColumnInfo(name = "pVal",  title = "p",            type = "pvalue")
   vcmHomogeneityTable$showSpecifiedColumnsOnly <- TRUE
 
   jaspResults[["vcmHomogeneityTable"]] <- vcmHomogeneityTable
