@@ -32,7 +32,8 @@ NULL
 .pdInputDeps <- c(
   "dependent", "covariates", "factors", "id", "time", "idOnly",
   "endogenousCovariates",
-  "timeVaryingExogenous", "timeInvariantExogenous", "timeInvariantEndogenous"
+  "timeVaryingExogenous", "timeVaryingEndogenous",
+  "timeInvariantExogenous", "timeInvariantEndogenous"
 )
 
 # Everything that changes the estimated model.
@@ -40,7 +41,7 @@ NULL
   .pdInputDeps,
   "effects", "estimators", "htMethod", "vcmEstimator", "pgglsEstimator",
   "gmmSteps", "transformation", "lagsDependent",
-  "instrumentLagMin", "instrumentLagMax", "collapseInstruments"
+  "instrumentLagMin", "instrumentLagMax", "endogenousLagMin", "collapseInstruments"
 )
 
 # the analyses whose QML offers the "effects" option
@@ -65,17 +66,17 @@ NULL
 # regressors entering the right hand side of the model formula
 .regressorsPD <- function(options) {
   switch(options[["analysis"]],
-    "ht"  = .variablesPD(options[["timeVaryingExogenous"]],
+    "ht"  = .variablesPD(options[["timeVaryingExogenous"]], options[["timeVaryingEndogenous"]],
                          options[["timeInvariantExogenous"]], options[["timeInvariantEndogenous"]]),
-    "gmm" = .variablesPD(options[["covariates"]], options[["factors"]], options[["endogenousCovariates"]]),
+    "gmm" = .variablesPD(options[["covariates"]], options[["endogenousCovariates"]]),
     .variablesPD(options[["covariates"]], options[["factors"]])
   )
 }
 
-# regressors that are factors; the Hausman-Taylor interface does not separate
-# them from the numeric ones, so nothing is checked for factor levels there
+# regressors that are factors; the Hausman-Taylor interface does not separate them
+# from the numeric ones, and the GMM interface only takes numeric regressors
 .factorsPD <- function(options) {
-  if (options[["analysis"]] == "ht")
+  if (options[["analysis"]] %in% c("ht", "gmm"))
     return(character(0))
 
   return(.variablesPD(options[["factors"]]))
@@ -137,6 +138,9 @@ NULL
              exitAnalysisIfErrors = TRUE)
 
   .checkPanelStructurePD(dataset, options)
+
+  if (options[["analysis"]] == "ht")
+    .checkHausmanTaylorVariablesPD(dataset, options)
 
   return()
 }
@@ -236,8 +240,7 @@ NULL
 
   # the extra parts are separated by "|" and hold the instruments
   parts <- switch(options[["analysis"]],
-    "ht"  = c(rightHandSide, paste(c(options[["timeVaryingExogenous"]], options[["timeInvariantExogenous"]]),
-                                   collapse = " + ")),
+    "ht"  = c(rightHandSide, .htInstrumentPartsPD(options)),
     "gmm" = c(rightHandSide, .gmmInstrumentsPD(options)),
     rightHandSide
   )
@@ -245,24 +248,6 @@ NULL
   formula <- stats::as.formula(paste(options[["dependent"]], "~", paste(parts, collapse = " | ")))
 
   return(formula)
-}
-
-.gmmRegressorsPD <- function(options) {
-  terms <- c(
-    sprintf("lag(%1$s, 1:%2$s)", options[["dependent"]], options[["lagsDependent"]]),
-    .regressorsPD(options)
-  )
-
-  return(paste(terms, collapse = " + "))
-}
-
-# the dependent variable and every endogenous regressor are instrumented by
-# their own lags
-.gmmInstrumentsPD <- function(options) {
-  endogenous <- .variablesPD(options[["dependent"]], options[["endogenousCovariates"]])
-  lagRange   <- paste(options[["instrumentLagMin"]], options[["instrumentLagMax"]], sep = ":")
-
-  return(paste(sprintf("lag(%1$s, %2$s)", endogenous, lagRange), collapse = " + "))
 }
 
 
@@ -300,22 +285,12 @@ NULL
     "fd"      = .fitFirstDifferencePD(formula, plmDf, options),
     "pooling" = plm::plm(formula, data = plmDf, model = "pooling"),
     "random"  = .fitRandomEffectsPD(formula, plmDf, options),
-    # the Hausman-Taylor estimator is only defined for individual effects
-    "ht"      = plm::plm(formula, data = plmDf, model = "random",
-                         effect        = "individual",
-                         random.method = "ht",
-                         inst.method   = options[["htMethod"]]),
+    "ht"      = .fitHausmanTaylorPD(formula, plmDf, options),
     "vcm"     = plm::pvcm(formula, data = plmDf,
                           model  = options[["vcmEstimator"]],
                           effect = options[["effects"]]),
-    "pggls"   = plm::pggls(formula, data = plmDf,
-                           model  = options[["pgglsEstimator"]],
-                           effect = options[["effects"]]),
-    "gmm"     = plm::pgmm(formula, data = plmDf,
-                          effect         = options[["effects"]],
-                          model          = options[["gmmSteps"]],
-                          transformation = options[["transformation"]],
-                          collapse       = options[["collapseInstruments"]]),
+    "pggls"   = .fitPgglsPD(formula, plmDf, options),
+    "gmm"     = .fitGmmPD(formula, plmDf, options),
     # "within" and "between"
     plm::plm(formula, data = plmDf, model = analysis, effect = options[["effects"]])
   )
@@ -563,9 +538,15 @@ NULL
 }
 
 .rSquaredPD <- function(fit, modelSummary, options) {
-  # summary.pggls and summary.pvcm report a single rsqr
-  if (is.null(modelSummary[["r.squared"]]))
-    return(if (is.null(modelSummary[["rsqr"]])) list() else list(rSq = unname(modelSummary[["rsqr"]])))
+  # plm's single rsqr for these two does not compare like with like
+  if (options[["analysis"]] == "vcm")
+    return(list(rSq = .vcmRSquaredPD(fit)))
+
+  if (options[["analysis"]] == "pggls")
+    return(list(rSq = .pgglsRSquaredPD(fit, options)))
+
+  if (options[["analysis"]] == "gmm")
+    return(list())
 
   # here plm computes it from the untransformed data
   if (inherits(fit, "plm") && .isUnbalancedTwoWaysRandomPD(fit))
@@ -587,6 +568,13 @@ NULL
 .addFitFootnotesPD <- function(table, fit, options) {
   if (.robustRequestedPD(options))
     table$addFootnote(gettext("The overall test uses the cluster-robust covariance matrix."))
+
+  switch(options[["analysis"]],
+    "gmm"   = .addGmmFitFootnotesPD(table, fit, options),
+    "pggls" = .addPgglsFitFootnotesPD(table, options),
+    "vcm"   = .addVcmFitFootnotesPD(table, options),
+    "ht"    = .addHtFitFootnotesPD(table, fit)
+  )
 
   if (!inherits(fit, "plm"))
     return()
@@ -663,11 +651,9 @@ NULL
   return(!anyNA(labelNumbers) && anyDuplicated(labelNumbers) == 0 && is.unsorted(labelNumbers))
 }
 
-# the Windmeijer correction for two-step GMM is applied by summary(), not by a
-# separate covariance matrix
 .modelSummaryObjectPD <- function(fit, options) {
   if (options[["analysis"]] == "gmm")
-    return(summary(fit, robust = options[["robustSE"]]))
+    return(.gmmSummaryPD(fit, .gmmRobustPD(options)))
 
   return(summary(fit))
 }
@@ -844,6 +830,12 @@ NULL
       coefTable$addFootnote(gettext("Robust standard errors require many individuals relative to the number of time periods."),
                             symbol = gettext("Warning:"))
   }
+
+  if (options[["analysis"]] == "gmm")
+    coefTable$addFootnote(.gmmStandardErrorFootnotePD(options))
+
+  if (options[["analysis"]] == "pggls")
+    coefTable$addFootnote(gettext("Standard errors assume a common error covariance matrix and rely on many groups relative to the size of that matrix; with few groups they can be far too small."))
 
   if (!inherits(fit, "plm"))
     return()

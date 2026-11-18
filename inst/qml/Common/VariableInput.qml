@@ -30,7 +30,7 @@ Group
 		{
 			name:			"factors"
 			label:			qsTr("Factors")
-			info:			qsTr("Categorical predictors entering the model; they are expanded into dummy variables.")
+			info:			qsTr("Categorical predictors entering the model; they are expanded into dummy variables with the first level as reference.")
 			singleVariable:	false
 			allowedColumns:	["ordinal", "nominal"]
 		}
@@ -48,9 +48,9 @@ Group
 		{
 			name:			"time"
 			label:			qsTr("Time")
-			info:			qsTr("The variable identifying the time periods (the longitudinal dimension of the panel).")
+			info:			qsTr("The variable identifying the time periods (the longitudinal dimension of the panel). Its order must be chronological.")
 			singleVariable:	true
-			allowedColumns:	["ordinal", "nominal"]
+			allowedColumns:	["ordinal"]
 			enabled:		!idOnly.checked
 			onEnabledChanged: if (!enabled && count > 0) itemDoubleClicked(0);
 		}

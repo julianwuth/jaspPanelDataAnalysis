@@ -6,9 +6,10 @@ import './Common' as Common
 
 // The Hausman-Taylor estimator needs every regressor classified along two axes:
 // whether it varies over time, and whether it is correlated with the individual
-// effect. The exogenous regressors serve as their own instruments, and the
-// time-varying ones additionally instrument the endogenous time-invariant
-// regressors. The estimator is only defined for individual effects.
+// effect. The exogenous regressors serve as their own instruments, the time-varying
+// endogenous ones are instrumented by their deviations from the individual means, and
+// the time-varying exogenous ones additionally instrument the endogenous
+// time-invariant regressors. The estimator is only defined for individual effects.
 Form
 {
 	VariablesForm
@@ -28,7 +29,14 @@ Form
 		{
 			name:	"timeVaryingExogenous"
 			label:	qsTr("Time-varying exogenous")
-			info:	qsTr("Regressors that vary over time and are uncorrelated with the individual effect. These instrument the endogenous regressors.")
+			info:	qsTr("Regressors that vary over time and are uncorrelated with the individual effect. These instrument the endogenous time-invariant regressors.")
+		}
+
+		AssignedVariablesList
+		{
+			name:	"timeVaryingEndogenous"
+			label:	qsTr("Time-varying endogenous")
+			info:	qsTr("Regressors that vary over time and are correlated with the individual effect.")
 		}
 
 		AssignedVariablesList
@@ -60,7 +68,7 @@ Form
 			label:			qsTr("Time")
 			info:			qsTr("The variable identifying the time periods.")
 			singleVariable:	true
-			allowedColumns:	["ordinal", "nominal"]
+			allowedColumns:	["ordinal"]
 			enabled:		!idOnly.checked
 			onEnabledChanged: if (!enabled && count > 0) itemDoubleClicked(0);
 		}
@@ -79,7 +87,8 @@ Form
 	{
 		title: qsTr("Statistics")
 
-		Common.Coefficients{}
+		// plm's robust covariance matrix is not valid for this estimator
+		Common.Coefficients { allowRobust: false }
 
 		DropDown
 		{

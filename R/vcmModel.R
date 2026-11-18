@@ -16,12 +16,27 @@ vcmModel <- function(jaspResults, dataset, options, analysis = "vcm") {
     .vcmGroupCoefficientsTablePD(jaspResults, options, ready)
   } else {
     .coefficientsTablePD(jaspResults, dataset, options, ready)
-    .vcmVarianceTablePD(jaspResults, options, ready)
+    .vcmVarianceTablePD(jaspResults, dataset, options, ready)
     .vcmHomogeneityTablePD(jaspResults, options, ready)
   }
 
   if (options[["plot"]])
     .createPlmPlot(jaspResults, dataset, options, ready)
+
+  return()
+}
+
+# plm's own value divides by the total sum of squares of the dependent variable and
+# all regressors stacked together
+.vcmRSquaredPD <- function(fit) {
+  response <- as.numeric(plm::pmodel.response(fit[["model"]]))
+
+  return(1 - sum(as.numeric(stats::residuals(fit))^2) / sum((response - mean(response))^2))
+}
+
+.addVcmFitFootnotesPD <- function(table, options) {
+  if (options[["vcmEstimator"]] == "random")
+    table$addFootnote(gettext("R-squared is evaluated at the mean coefficients."))
 
   return()
 }
@@ -82,10 +97,13 @@ vcmModel <- function(jaspResults, dataset, options, analysis = "vcm") {
 
   vcmGroupCoefTable$addFootnote(gettext("plm estimates a separate regression per group; no inferential statistics are reported for the individual coefficients."))
 
+  if (anyNA(rows[["estimate"]]) || anyNA(rows[["se"]]))
+    vcmGroupCoefTable$addFootnote(gettext("Blank or undefined cells belong to groups with too few observations or collinear regressors."))
+
   return()
 }
 
-.vcmVarianceTablePD <- function(jaspResults, options, ready) {
+.vcmVarianceTablePD <- function(jaspResults, dataset, options, ready) {
   if (!is.null(jaspResults[["vcmVarianceTable"]]))
     return()
 
@@ -126,7 +144,24 @@ vcmModel <- function(jaspResults, dataset, options, analysis = "vcm") {
     stringsAsFactors = FALSE
   ))
 
+  if (.vcmUsesUncorrectedDeltaPD(jaspResults, dataset, options, modelSummary[["Delta"]]))
+    vcmVarianceTable$addFootnote(gettext("The bias-corrected covariance matrix was not positive semidefinite, so the uncorrected covariance matrix of the group estimates is used, here and for the weights of the mean coefficients."))
+
   return()
+}
+
+# plm replaces Delta = D1 - D2 by D1, the covariance of the group estimates
+.vcmUsesUncorrectedDeltaPD <- function(jaspResults, dataset, options, delta) {
+  groupFit <- try(
+    plm::pvcm(.createFormulaPD(options), data = .pdataFramePD(jaspResults, dataset, options, TRUE),
+              model = "within", effect = options[["effects"]]),
+    silent = TRUE
+  )
+
+  if (isTryError(groupFit) || anyNA(stats::coef(groupFit)))
+    return(FALSE)
+
+  return(isTRUE(all.equal(unname(stats::cov(as.matrix(stats::coef(groupFit)))), unname(as.matrix(delta)))))
 }
 
 .vcmHomogeneityTablePD <- function(jaspResults, options, ready) {
@@ -158,12 +193,17 @@ vcmModel <- function(jaspResults, dataset, options, analysis = "vcm") {
   if (isTryError(modelSummary) || is.null(modelSummary[["chisq.test"]]))
     return()
 
-  homogeneityTest <- modelSummary[["chisq.test"]]
+  statistic <- unname(modelSummary[["chisq.test"]][["statistic"]])
+
+  # plm counts individuals here even when the groups are time periods
+  dimensions       <- plm::pdim(fit[["model"]])[["nT"]]
+  nGroups          <- if (options[["effects"]] == "time") dimensions[["T"]] else dimensions[["n"]]
+  degreesOfFreedom <- length(stats::coef(fit)) * (nGroups - 1)
 
   vcmHomogeneityTable$addRows(list(
-    chiSq = unname(homogeneityTest[["statistic"]]),
-    df    = unname(homogeneityTest[["parameter"]]),
-    pVal  = unname(homogeneityTest[["p.value"]])
+    chiSq = statistic,
+    df    = degreesOfFreedom,
+    pVal  = stats::pchisq(statistic, degreesOfFreedom, lower.tail = FALSE)
   ))
 
   vcmHomogeneityTable$addFootnote(gettext("A significant result indicates that the coefficients differ across groups."))

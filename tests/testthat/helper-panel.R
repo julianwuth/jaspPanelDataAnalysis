@@ -49,8 +49,9 @@ panelOptions <- function(analysis, ...) {
   options   <- .panelDefaults[[analysis]]
   arguments <- list(...)
 
-  for (name in names(arguments))
-    options[[name]] <- if (length(arguments[[name]]) > 1) as.list(arguments[[name]]) else arguments[[name]]
+  # by position, so that a later argument overrides an earlier one of the same name
+  for (i in seq_along(arguments))
+    options[[names(arguments)[i]]] <- if (length(arguments[[i]]) > 1) as.list(arguments[[i]]) else arguments[[i]]
 
   # multi-variable slots stay lists, as the GUI sends them
   for (name in intersect(names(options), .panelListOptions))

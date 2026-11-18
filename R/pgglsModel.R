@@ -10,7 +10,6 @@ pgglsModel <- function(jaspResults, dataset, options, analysis = "pggls") {
   .fitModelPD(jaspResults, dataset, options, ready)
 
   .modelSummaryTablePD(jaspResults, dataset, options, ready)
-  .pgglsDimensionFootnotePD(jaspResults, options, ready)
 
   .coefficientsTablePD(jaspResults, dataset, options, ready)
 
@@ -20,36 +19,40 @@ pgglsModel <- function(jaspResults, dataset, options, analysis = "pggls") {
   return()
 }
 
-# The unrestricted error covariance matrix is only estimable when the number of
-# individuals exceeds the number of periods.
-.pgglsDimensionFootnotePD <- function(jaspResults, options, ready) {
-  if (!ready)
-    return()
+# The unrestricted covariance matrix has one row per period (per individual with time
+# effects), minus one after demeaning or differencing, and is estimated from the
+# groups in the other dimension (Wooldridge, 2002, pp. 277-278).
+.fitPgglsPD <- function(formula, plmDf, options) {
+  estimator  <- options[["pgglsEstimator"]]
+  dimensions <- plm::pdim(plmDf)[["nT"]]
+  timeEffect <- options[["effects"]] == "time"
+  nGroups    <- if (timeEffect) dimensions[["T"]] else dimensions[["n"]]
+  nEquations <- (if (timeEffect) dimensions[["n"]] else dimensions[["T"]]) - (estimator != "pooling")
 
-  modelSummaryTable <- jaspResults[["modelSummaryTable"]]
+  if (nGroups <= nEquations)
+    stop(gettextf("General FGLS estimates a %1$s by %1$s error covariance matrix, which requires more than %1$s groups, but only %2$s are available.",
+                  nEquations, nGroups), call. = FALSE)
 
-  if (is.null(modelSummaryTable) || modelSummaryTable$getError())
-    return()
+  if (estimator == "fd" && .consecutiveSpellsPD(plmDf, options)[["nSkipped"]] > 0)
+    stop(gettext("General FGLS on first differences requires consecutive time periods without missing values."), call. = FALSE)
 
-  fit <- jaspResults[["modelFit"]]$object
+  fit <- plm::pggls(formula, data = plmDf, model = estimator, effect = options[["effects"]])
 
-  if (isTryError(fit))
-    return()
+  return(fit)
+}
 
-  panelDimensions <- try(plm::pdim(fit), silent = TRUE)
+# plm divides the residual sum of squares of the transformed model by the total sum
+# of squares of the untransformed dependent variable
+.pgglsRSquaredPD <- function(fit, options) {
+  response <- as.numeric(plm::pmodel.response(fit[["model"]], model = options[["pgglsEstimator"]],
+                                              effect = options[["effects"]]))
 
-  if (isTryError(panelDimensions))
-    return()
+  return(1 - sum(as.numeric(stats::residuals(fit))^2) / sum((response - mean(response))^2))
+}
 
-  nIndividuals <- panelDimensions[["nT"]][["n"]]
-  nPeriods     <- panelDimensions[["nT"]][["T"]]
-
-  if (nIndividuals <= nPeriods)
-    modelSummaryTable$addFootnote(
-      gettextf("The general FGLS estimator requires more individuals (%1$s) than time periods (%2$s).",
-               nIndividuals, nPeriods),
-      symbol = gettext("Warning:")
-    )
+.addPgglsFitFootnotesPD <- function(table, options) {
+  if (options[["pgglsEstimator"]] != "pooling")
+    table$addFootnote(gettext("R-squared refers to the transformed dependent variable."))
 
   return()
 }
