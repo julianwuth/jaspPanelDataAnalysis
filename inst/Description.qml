@@ -3,7 +3,7 @@ import JASP.Module
 
 Description
 {
-	name		: "jaspPanelDataAnalysis"
+	name		: "jaspPanelData"
 	title		: qsTr("Panel Data")
 	description	: qsTr("Module for analyzing panel data")
 	version		: "0.1.0"

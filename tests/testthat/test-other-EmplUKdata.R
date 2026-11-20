@@ -25,6 +25,7 @@ test_that("fixedModel results match", {
      0.139319849762306, -3.97961732277511, "capital", -0.0336719878994147,
      0.908267643656738, 0.292147543234665, -0.115256789520109))
 
+  # adj. R2 uses n - N total df of the demeaned data; plm reports -0.0442 (n - 1)
   table <- results[["results"]][["modelSummaryTable"]][["data"]]
   jaspTools::expect_equal_tables(table,
     list(0.0967592138023625, 3, 888, "Fixed effects", 4.04430448557162e-20,
@@ -36,6 +37,7 @@ test_that("randomModel results match", {
   results <- runPanel("randomModel", emplUK(), options)
 
   table <- results[["results"]][["assumptionChecks"]][["collection"]][["assumptionChecks_hausmanTestTable"]][["data"]]
+  # one error variance in both covariance matrices; plm::phtest gives 102.29
   jaspTools::expect_equal_tables(table,
     list(101.325902964414, 3, 8.06091671890478e-22))
 
