@@ -1,32 +1,30 @@
-import QtQuick.Layouts
+import QtQuick
 import JASP.Controls
-import JASP.Widgets
 import JASP
 
 import './Common' as Common
 
 Form
 {
-    Common.VariableInput{}
+	Common.VariableInput{}
 
-    Section
-    {
-        title : qsTr("Statistics")
+	Section
+	{
+		title: qsTr("Statistics")
 
-        RadioButtonGroup
-        {
-            name : 'model'
-            title : qsTr("Model")
-            RadioButton { value: "within"; label: qsTr("Fixed"); checked: true }
-            RadioButton { value: "random"; label: qsTr("Random") }
-        }
+		RadioButtonGroup
+		{
+			name:	"vcmEstimator"
+			title:	qsTr("Model")
+			info:	qsTr("The no-pooling model estimates a separate regression per group; the random coefficients model shrinks them towards a common mean (Swamy).")
 
-        RadioButtonGroup
-        {
-            name : 'effect'
-            title : qsTr("Effect")
-            RadioButton { value: "individual"; label: qsTr("Individual"); checked: true }
-            RadioButton { value: "time"; label: qsTr("Time") }
-        }
-    }
+			RadioButton { value: "within";	label: qsTr("No pooling"); checked: true	}
+			RadioButton { value: "random";	label: qsTr("Random coefficients")			}
+		}
+
+		// pvcm only accepts one-way effects
+		Common.Effects { allowTwoways: false }
+
+		Common.Plot{}
+	}
 }

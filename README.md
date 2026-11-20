@@ -1,33 +1,25 @@
-# jaspModuleTemplate
+# jaspPanelDataAnalysis
 
-This template repository contains example functionality, which makes it an excellent starting point for developing a new JASP module.
-It contains the necessary files and structure, plus a numbers of examples to get started and to understand JASP's internals.
+JASP module for linear panel data models, built on the [plm](https://cran.r-project.org/package=plm) package.
 
-## How to use this repository
+| Analysis | Estimator |
+| --- | --- |
+| Fixed Effects Model | within estimator with individual, time or two-way effects |
+| Random Effects Model | GLS with Swamy-Aurora, Wallace-Hussain, Amemiya or Nerlove variance components |
+| Hausman-Taylor Model | instrumental variables with the Hausman-Taylor, Amemiya-MaCurdy or Breusch-Mizon-Schmidt instrument set |
+| Pooling Model | pooled OLS, with Lagrange multiplier tests for unobserved effects |
+| First-Difference Model | OLS on one-period differences |
+| Between Model | OLS on group means |
+| Variable Coefficients Models | separate regressions per group, or Swamy random coefficients |
+| Generalized Method of Moments | Arellano-Bond difference GMM and Blundell-Bond system GMM |
+| General Feasible Generalized Least Squares | FGLS with an unrestricted error covariance matrix |
 
-1. Fork this template repository to your own GitHub account
-2. Clone it to your machine
-3. Open JASP and add it as a development module
+## Tests
 
-### For newcomers
+Tests live in `tests/testthat` and run through `jaspTools`:
 
-It is very illuminating to take a look at our examples **and** at the files that generate them.
-
-For instance, the image below shows the different menus for the _"Using the interface"_ analysis, together with the files that generate them:
-
-![](inst/img/JASP.png)
-
-### For contributors
-
-Feel free to reuse and adapt to your needs.
-Feel also free to remove the ones you don't need.
-
-## Contributing back new module to JASP
-
-Once you have developed your module, you can contribute it back to JASP by creating a pull request.
-The JASP team will review your module and provide feedback.
-Once your module is accepted, a new repo is created in the JASP organization and your module is added to the JASP module repository.
-
-## Reference
-
-[Tutorial: Development of a JASP module](https://github.com/jasp-stats/jasp-desktop/blob/development/Docs/development/jasp-modules-tutorial.md)
+```r
+library(jaspTools)
+setPkgOption("module.dirs", ".")
+testAll()
+```

@@ -2,31 +2,29 @@ import QtQuick
 import JASP.Controls
 import JASP
 
-
 Group
 {
-    title: qsTr("Coefficients")
+	title: qsTr("Coefficients")
 
-    CheckBox
-    {
-        id: step1
-        name: "estimates"
-        label: qsTr("Estimates")
+	// valid robust covariance matrices are only available for the within, random,
+	// pooling and first-difference estimators
+	property bool allowRobust: true
 
-    // We can add some extra control parameters
-        checked: false // Default value
+	CheckBox
+	{
+		name:		"estimates"
+		label:		qsTr("Estimates")
+		checked:	false
+		info:		qsTr("Display the estimated regression coefficients with their standard errors and tests.")
+	}
 
-        CheckBox
-        {
-            id: step2
-            name: "robust_estimates"
-            label: qsTr("Robust Estimates")
-
-            enabled: step1.checked
-
-            onEnabledChanged: {
-                if (!enabled) checked = false
-            }
-        }
-    }
+	// also drives the overall and Hausman tests, so it does not require the estimates table
+	CheckBox
+	{
+		name:		"robustEstimates"
+		label:		qsTr("Robust standard errors")
+		checked:	false
+		visible:	allowRobust
+		info:		qsTr("Use heteroskedasticity and autocorrelation consistent (Arellano) standard errors clustered on the individuals, in the coefficients table, the overall test and the Hausman test.")
+	}
 }
